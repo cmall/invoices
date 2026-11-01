@@ -23,7 +23,7 @@
     <div class="sidebar-body">
       <a class="btn primary block new-btn" href="/invoices/new"><%- include('icon', { name: 'plus' }) %> New invoice</a>
       <nav class="nav">
-        <% const nav = [['/', 'Dashboard', 'dashboard'], ['/invoices', 'Invoices', 'invoice'], ['/estimates', 'Estimates', 'estimate'], ['/clients', 'Clients', 'clients'], ['/projects', 'Projects', 'projects'], ['/reports', 'Reports', 'reports'], ['/settings', 'Settings', 'settings']]; %>
+        <% const nav = [['/', 'Dashboard', 'dashboard'], ['/invoices', 'Invoices', 'invoice'], ['/estimates', 'Estimates', 'estimate'], ['/recurring', 'Recurring', 'repeat'], ['/clients', 'Clients', 'clients'], ['/projects', 'Projects', 'projects'], ['/reports', 'Reports', 'reports'], ['/settings', 'Settings', 'settings']]; %>
         <% for (const [href, label, icon] of nav) { const active = href === '/' ? path === '/' : path.startsWith(href); %>
           <a href="<%= href %>" class="<%= active ? 'active' : '' %>"><%- include('icon', { name: icon }) %><span><%= label %></span></a>
         <% } %>

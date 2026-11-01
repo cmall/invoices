@@ -4,6 +4,7 @@ A small, self-hosted invoicing app for freelancers and small studios who send a 
 
 - **Clients, projects and rates**: each client has its own currency, payment terms and default taxes. Projects carry an hourly rate that fills in automatically.
 - **Invoices and estimates**: line items with optional dates, quantities, discounts and notes. A draft stays open so you can keep adding lines as you work, then send it when you're ready. Estimates can be accepted online and turned into invoices in one click.
+- **Recurring invoices**: bill a client every N weeks, months, quarters or years, with an optional end date or invoice count. Each invoice is staged as a draft a few days before its date, so you can review or edit it. Per schedule, choose **Review first** (you press Send) or **Send automatically** on the invoice date. Placeholders like `{{month}}` and `{{year}}` fill in the subject and line descriptions. Any draft invoice can also be scheduled to send on a date.
 - **Taxes**: any number of named tax rates (GST, HST, PST, VAT, sales tax…) with registration numbers printed on the invoice. Each line can be marked taxable or not, and old invoices never change when you edit a rate.
 - **Modern interface** with light and dark modes, built around your brand colours, plus one-click updates from GitHub.
 - **Your branding**: upload a logo and pick from colour themes or your own accent and heading colours, with a modern or classic typeface. Branding applies to PDFs, the client payment page, emails and the app itself, with a live preview in Settings.

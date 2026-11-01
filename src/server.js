@@ -7,7 +7,7 @@ const auth = require('./auth');
 const settings = require('./settings');
 const util = require('./util');
 const stripe = require('./stripe');
-const reminders = require('./reminders');
+const scheduler = require('./scheduler');
 const updater = require('./updater');
 
 // Fingerprint of the CSS/JS so browsers fetch fresh copies after every update.
@@ -89,7 +89,7 @@ if (require.main === module) {
     if (!config.adminPasswordHash) console.warn('ADMIN_PASSWORD_HASH is not set. Run "npm run setup" to create one.');
   });
   if (!config.disableScheduler) {
-    reminders.start();
+    scheduler.start();
     updater.startBackgroundChecks();
   }
 }

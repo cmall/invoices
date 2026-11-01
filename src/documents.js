@@ -195,7 +195,7 @@ function decorate(doc) {
     !!doc.due_date &&
     doc.due_date < today() &&
     doc.balance_cents > 0;
-  doc.display_status = doc.is_overdue ? 'overdue' : doc.status;
+  doc.display_status = doc.is_overdue ? 'overdue' : doc.status === 'draft' && doc.auto_send_on ? 'scheduled' : doc.status;
   doc.is_editable = doc.status === 'draft' || doc.status === 'sent' || doc.status === 'partial';
   return doc;
 }
@@ -301,7 +301,7 @@ function markSent(id) {
   const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(id);
   if (!doc) return;
   if (doc.status === 'draft') {
-    db.prepare("UPDATE documents SET status = 'sent', sent_at = COALESCE(sent_at, datetime('now')) WHERE id = ?").run(id);
+    db.prepare("UPDATE documents SET status = 'sent', sent_at = COALESCE(sent_at, datetime('now')), auto_send_on = NULL WHERE id = ?").run(id);
   } else {
     db.prepare("UPDATE documents SET sent_at = COALESCE(sent_at, datetime('now')) WHERE id = ?").run(id);
   }
