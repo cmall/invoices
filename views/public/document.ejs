@@ -34,6 +34,6 @@
 <%- include('../documents/preview', { doc }) %>
 <p class="center muted small">Questions? Contact <%= s.business_email ? s.business_email : s.business_name %>.</p>
 </main>
-<script src="/static/app.js"></script>
+<script src="/static/app.js?v=<%= v %>"></script>
 </body>
 </html>

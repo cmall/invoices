@@ -365,3 +365,13 @@ test('branding: logo upload, colours and fonts', async () => {
   assert.strictEqual(pdf.subarray(0, 4).toString(), '%PDF');
   assert.match(pdf.toString('latin1'), /Times-Bold/);
 });
+
+test('CSS and JS links carry a version for cache busting', async () => {
+  const html = await (await get('/')).text();
+  const m = html.match(/\/static\/app\.css\?v=([0-9a-f]{10})/);
+  assert.ok(m, 'versioned stylesheet link');
+  assert.match(html, new RegExp(`/static/app\\.js\\?v=${m[1]}`));
+  const css = await fetch(`${base}/static/app.css?v=${m[1]}`);
+  assert.strictEqual(css.status, 200);
+  assert.match(css.headers.get('content-type'), /text\/css/);
+});
