@@ -1,0 +1,96 @@
+<%- include('../partials/head') %>
+<% const m = (c) => u.formatMoney(c, p.currency); %>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Recurring invoice</p>
+    <h1><%= p.name || p.subject || 'Untitled' %>
+      <% if (!p.active) { %><span class="badge badge-draft">paused</span><% } else if (p.finished) { %><span class="badge badge-void">finished</span><% } else { %><span class="badge <%= p.send_mode === 'auto' ? 'badge-paid' : 'badge-sent' %>"><%= p.send_mode === 'auto' ? 'auto-send' : 'review first' %></span><% } %>
+    </h1>
+    <div class="muted"><a href="/clients/<%= p.client_id %>"><%= p.client_name %></a> · <%= p.schedule_text %></div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/recurring/<%= p.id %>/edit"><%- include('../partials/icon', { name: 'edit' }) %> Edit</a>
+    <form method="post" action="/recurring/<%= p.id %>/toggle"><%- include('../partials/csrf') %><button class="btn"><%- include('../partials/icon', { name: p.active ? 'pause' : 'play' }) %> <%= p.active ? 'Pause' : 'Resume' %></button></form>
+    <% if (p.next_date) { %>
+    <form method="post" action="/recurring/<%= p.id %>/generate" data-confirm="Create the <%= u.formatDate(p.next_date) %> invoice now? It is staged as a draft for you to review."><%- include('../partials/csrf') %><button class="btn primary"><%- include('../partials/icon', { name: 'plus' }) %> Create next invoice now</button></form>
+    <% } %>
+  </div>
+</div>
+
+<div class="hero-grid">
+  <div class="card timeline-card">
+    <h2>Upcoming</h2>
+    <% if (!p.active) { %>
+      <p class="muted">Paused. Nothing will be created until you resume it. Resuming skips the dates you missed.</p>
+    <% } else if (!upcoming.length) { %>
+      <p class="muted">This schedule has finished.</p>
+    <% } else { %>
+      <ol class="upcoming">
+        <% upcoming.forEach((d, i) => { const stage = u.addDays(d, -p.stage_days); %>
+          <li class="<%= i === 0 ? 'next' : '' %>">
+            <span class="up-date"><%= new Date(d + 'T12:00:00Z').toLocaleDateString('en-CA', { month: 'short', day: 'numeric', timeZone: 'UTC' }) %><small><%= d.slice(0, 4) %></small></span>
+            <span class="up-text">
+              <strong><%= m(p.total_cents) %></strong>
+              <span class="muted small">Staged <%= stage <= u.today() ? 'within the hour' : u.formatDate(stage) %> · <%= p.send_mode === 'auto' ? `emailed ${u.formatDate(d)}` : 'you send it' %></span>
+            </span>
+          </li>
+        <% }) %>
+      </ol>
+    <% } %>
+  </div>
+  <div class="stat-stack">
+    <div class="stat">
+      <div class="stat-icon"><%- include('../partials/icon', { name: 'invoice' }) %></div>
+      <div><div class="stat-label">Each invoice</div><div class="stat-value"><%= m(p.total_cents) %></div><div class="stat-sub"><%= p.lines.length %> line<%= p.lines.length === 1 ? '' : 's' %></div></div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon"><%- include('../partials/icon', { name: 'send' }) %></div>
+      <div><div class="stat-label">Delivery</div><div class="stat-value small-value"><%= p.send_mode === 'auto' ? 'Sent automatically' : 'You review & send' %></div><div class="stat-sub">Prepared <%= p.stage_days %> day<%= p.stage_days === 1 ? '' : 's' %> ahead<%= p.client_email ? ` · to ${p.client_email}` : '' %></div></div>
+    </div>
+  </div>
+</div>
+<% if (p.send_mode === 'auto' && !p.client_email) { %>
+  <div class="card notice warn"><%- include('../partials/icon', { name: 'alert' }) %><div><strong><%= p.client_name %> has no email address</strong>, so automatic sends will be skipped. <a href="/clients/<%= p.client_id %>/edit">Add one</a>.</div></div>
+<% } %>
+
+<section>
+  <div class="section-head"><h2>Template</h2></div>
+  <div class="card">
+    <table class="table compact">
+      <thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+        <% for (const l of p.lines) { %>
+          <tr><td><span class="muted small"><%= l.kind %></span><br><%= l.description %></td><td class="num"><%= u.formatQuantity(l.quantity) %></td><td class="num"><%= m(l.unit_price_cents) %></td><td class="num"><%= m(Math.round(l.quantity * l.unit_price_cents)) %></td></tr>
+        <% } %>
+        <% if (!p.lines.length) { %><tr><td colspan="4" class="muted">No line items. <a href="/recurring/<%= p.id %>/edit">Add some</a>.</td></tr><% } %>
+      </tbody>
+    </table>
+    <% if (p.taxes.length) { %><p class="hint mt">Taxes: <%= p.taxes.map(t => `${t.name} ${u.formatRate(t.rate)}`).join(', ') %></p><% } %>
+    <% if (p.subject) { %><p class="hint">Subject: <%= p.subject %> → <strong><%= u.fillTemplate(p.subject, { ...periodVars, client_name: p.client_name }) %></strong></p><% } %>
+  </div>
+</section>
+
+<section>
+  <div class="section-head"><h2>Invoices created</h2></div>
+  <% if (!invoices.length) { %><p class="muted">None yet.</p><% } else { %>
+  <table class="table">
+    <thead><tr><th>Number</th><th>Invoice date</th><th>Status</th><th class="num">Total</th><th class="num">Balance</th></tr></thead>
+    <tbody>
+    <% for (const d of invoices) { %>
+      <tr>
+        <td><a href="/invoices/<%= d.id %>"><%= d.number %></a></td>
+        <td><%= u.formatDate(d.issue_date) %></td>
+        <td><%- include('../partials/status', { status: d.display_status }) %><% if (d.auto_send_on) { %> <span class="muted small">sends <%= u.formatDate(d.auto_send_on) %></span><% } %></td>
+        <td class="num"><%= u.formatMoney(d.total_cents, d.currency) %></td>
+        <td class="num"><%= d.status === 'void' ? '—' : u.formatMoney(d.balance_cents, d.currency) %></td>
+      </tr>
+    <% } %>
+    </tbody>
+  </table>
+  <% } %>
+</section>
+
+<div class="danger-zone">
+  <form method="post" action="/recurring/<%= p.id %>/delete" data-confirm="Delete this recurring invoice? Invoices it already created are kept."><%- include('../partials/csrf') %><button class="btn small danger">Delete recurring invoice</button></form>
+</div>
+<%- include('../partials/foot') %>

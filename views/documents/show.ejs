@@ -14,8 +14,52 @@
   </div>
 </div>
 
-<% if (doc.status === 'draft') { %>
-  <div class="card notice">This <%= label.toLowerCase() %> is a <strong>draft</strong>. Keep adding lines as you work, then send it when you're ready. Clients can't see drafts.</div>
+<% if (isInv && doc.status === 'draft' && doc.auto_send_on) { %>
+  <div class="card schedule-banner">
+    <div class="schedule-icon"><%- include('../partials/icon', { name: 'clock', size: 22 }) %></div>
+    <div class="schedule-text">
+      <strong>Scheduled to email automatically <%= doc.auto_send_on <= today ? 'within the hour' : `on ${u.formatDate(doc.auto_send_on)}` %></strong>
+      <span class="muted small">To <%= doc.client.email || 'the client (no email address set!)' %>, with the PDF attached. You can still edit it until then.<% if (recurringProfile) { %> Created by <a href="/recurring/<%= recurringProfile.id %>"><%= recurringProfile.name || recurringProfile.subject || 'a recurring invoice' %></a>.<% } %></span>
+    </div>
+    <div class="schedule-actions">
+      <form method="post" action="/invoices/<%= doc.id %>/auto-send" class="inline-form">
+        <%- include('../partials/csrf') %>
+        <input type="date" name="date" value="<%= doc.auto_send_on %>" min="<%= today %>" aria-label="Send date">
+        <button class="btn small">Change date</button>
+      </form>
+      <form method="post" action="/invoices/<%= doc.id %>/auto-send"><%- include('../partials/csrf') %><input type="hidden" name="action" value="cancel"><button class="btn small">Don't send automatically</button></form>
+    </div>
+  </div>
+<% } else if (isInv && doc.status === 'draft' && recurringProfile) { %>
+  <div class="card schedule-banner review">
+    <div class="schedule-icon"><%- include('../partials/icon', { name: 'eye', size: 22 }) %></div>
+    <div class="schedule-text">
+      <strong>Staged for your review</strong>
+      <span class="muted small">Created by <a href="/recurring/<%= recurringProfile.id %>"><%= recurringProfile.name || recurringProfile.subject || 'a recurring invoice' %></a>. Check it over, then send it, or schedule it to go out on its own.</span>
+    </div>
+    <div class="schedule-actions">
+      <a class="btn small primary" href="/invoices/<%= doc.id %>/send"><%- include('../partials/icon', { name: 'send', size: 15 }) %> Send now</a>
+      <form method="post" action="/invoices/<%= doc.id %>/auto-send" class="inline-form">
+        <%- include('../partials/csrf') %>
+        <input type="date" name="date" value="<%= doc.issue_date >= today ? doc.issue_date : today %>" min="<%= today %>" aria-label="Send date">
+        <button class="btn small">Send automatically</button>
+      </form>
+    </div>
+  </div>
+<% } else if (doc.status === 'draft') { %>
+  <div class="card notice"><%- include('../partials/icon', { name: 'edit' }) %><div>This <%= label.toLowerCase() %> is a <strong>draft</strong>. Keep adding lines as you work, then send it when you're ready. Clients can't see drafts.
+    <% if (isInv) { %>
+      <details class="mt"><summary>Schedule it to send automatically</summary>
+        <form method="post" action="/invoices/<%= doc.id %>/auto-send" class="inline-form">
+          <%- include('../partials/csrf') %>
+          <input type="date" name="date" value="<%= doc.issue_date >= today ? doc.issue_date : today %>" min="<%= today %>" aria-label="Send date" class="w-date">
+          <button class="btn small">Schedule</button>
+        </form>
+      </details>
+    <% } %>
+  </div></div>
+<% } else if (recurringProfile) { %>
+  <p class="muted small recurring-note"><%- include('../partials/icon', { name: 'repeat', size: 14 }) %> Created by <a href="/recurring/<%= recurringProfile.id %>"><%= recurringProfile.name || recurringProfile.subject || 'a recurring invoice' %></a></p>
 <% } %>
 <% if (doc.paid_cents && doc.status !== 'paid' && doc.status !== 'void' && doc.balance_cents < 0) { %>
   <div class="card notice warn">Payments exceed the total by <%= m(-doc.balance_cents) %>.</div>
@@ -111,6 +155,7 @@
         <% if (!isInv && doc.converted_invoice_id) { %><a href="/invoices/<%= doc.converted_invoice_id %>">View invoice</a><% } %>
         <% if (isInv && doc.source_estimate_id) { %><a href="/estimates/<%= doc.source_estimate_id %>">View original estimate</a><% } %>
         <a href="<%= base %>/<%= doc.id %>/pdf?download=1">Download PDF</a>
+        <% if (isInv) { %><a href="/recurring/new?from=<%= doc.id %>">Make recurring…</a><% } %>
         <form method="post" action="<%= base %>/<%= doc.id %>/duplicate"><%- include('../partials/csrf') %><button class="link">Duplicate</button></form>
         <% if (doc.status !== 'draft' && !doc.payments.length && doc.status !== 'invoiced') { %>
           <form method="post" action="<%= base %>/<%= doc.id %>/revert-draft"><%- include('../partials/csrf') %><button class="link">Move back to draft</button></form>

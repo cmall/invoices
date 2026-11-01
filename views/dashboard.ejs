@@ -82,6 +82,28 @@
   </div>
 </div>
 
+<% if (staged.length) { %>
+<section class="staged">
+  <div class="section-head"><h2>Staged recurring invoices</h2><a class="small" href="/recurring">Manage recurring →</a></div>
+  <div class="staged-list">
+    <% for (const d of staged) { %>
+      <div class="staged-item <%= d.auto_send_on ? 'is-auto' : 'is-review' %>">
+        <div class="staged-icon"><%- include('partials/icon', { name: d.auto_send_on ? 'clock' : 'eye' }) %></div>
+        <div class="staged-main">
+          <div><a href="/invoices/<%= d.id %>"><strong><%= d.number %></strong></a> <span class="muted">· <%= d.client_name %><%= d.subject ? ` · ${d.subject}` : '' %></span></div>
+          <div class="small <%= d.auto_send_on ? 'accent' : 'muted' %>"><% if (d.auto_send_on) { %>Sends automatically <%= d.auto_send_on <= u.today() ? 'within the hour' : `on ${u.formatDate(d.auto_send_on)}` %><% } else { %>Waiting for your review<% } %></div>
+        </div>
+        <div class="staged-amount"><%= u.formatMoney(d.total_cents, d.currency) %></div>
+        <div class="staged-actions">
+          <a class="btn small" href="/invoices/<%= d.id %>">Review</a>
+          <a class="btn small primary" href="/invoices/<%= d.id %>/send">Send now</a>
+        </div>
+      </div>
+    <% } %>
+  </div>
+</section>
+<% } %>
+
 <section>
   <div class="section-head"><h2>Open drafts</h2><span class="muted small">Add lines as you work, send when ready</span></div>
   <% if (!drafts.length) { %>

@@ -155,6 +155,39 @@ const migrations = [
     expires_at INTEGER NOT NULL
   );
   `,
+  `
+  -- Recurring invoice profiles: a template plus a schedule.
+  CREATE TABLE recurring (
+    id INTEGER PRIMARY KEY,
+    client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    name TEXT NOT NULL DEFAULT '',
+    subject TEXT NOT NULL DEFAULT '',
+    po_number TEXT NOT NULL DEFAULT '',
+    currency TEXT NOT NULL,
+    discount_percent REAL NOT NULL DEFAULT 0,
+    notes TEXT NOT NULL DEFAULT '',
+    terms TEXT NOT NULL DEFAULT '',
+    lines_json TEXT NOT NULL DEFAULT '[]',
+    taxes_json TEXT NOT NULL DEFAULT '[]',
+    frequency TEXT NOT NULL DEFAULT 'monthly' CHECK (frequency IN ('weekly','monthly','quarterly','yearly')),
+    interval_count INTEGER NOT NULL DEFAULT 1,
+    start_date TEXT NOT NULL,
+    end_date TEXT,
+    max_count INTEGER,
+    generated_count INTEGER NOT NULL DEFAULT 0,
+    next_date TEXT,
+    -- 'review': staged as a draft for you to send; 'auto': sent automatically on the invoice date.
+    send_mode TEXT NOT NULL DEFAULT 'review' CHECK (send_mode IN ('review','auto')),
+    stage_days INTEGER NOT NULL DEFAULT 3,
+    notify_owner INTEGER NOT NULL DEFAULT 1,
+    active INTEGER NOT NULL DEFAULT 1,
+    last_generated_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  ALTER TABLE documents ADD COLUMN recurring_id INTEGER REFERENCES recurring(id) ON DELETE SET NULL;
+  -- When set on a draft invoice, it is emailed automatically on this date.
+  ALTER TABLE documents ADD COLUMN auto_send_on TEXT;
+  `,
 ];
 
 function migrate() {

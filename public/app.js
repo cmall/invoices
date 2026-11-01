@@ -158,6 +158,54 @@
     markActive();
   }
 
+  // Recurring schedule: live preview of the next invoice dates (mirrors src/recurring.js).
+  var sched = document.querySelector('[data-schedule]');
+  if (sched) {
+    var previewEl = sched.querySelector('[data-sched-preview]');
+    var pad = function (n) { return String(n).padStart(2, '0'); };
+    var occurrence = function (start, freq, every, n) {
+      var p = start.split('-').map(Number);
+      if (freq === 'weekly') {
+        var d = new Date(Date.UTC(p[0], p[1] - 1, p[2] + 7 * every * n));
+        return d.toISOString().slice(0, 10);
+      }
+      var months = { monthly: 1, quarterly: 3, yearly: 12 }[freq] * every * n;
+      var total = p[1] - 1 + months;
+      var y = p[0] + Math.floor(total / 12);
+      var m = ((total % 12) + 12) % 12;
+      var dim = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+      return y + '-' + pad(m + 1) + '-' + pad(Math.min(p[2], dim));
+    };
+    var renderPreview = function () {
+      var start = sched.querySelector('[data-sched-start]').value;
+      var freq = sched.querySelector('[data-sched-frequency]').value;
+      var every = Math.max(1, parseInt(sched.querySelector('[data-sched-interval]').value, 10) || 1);
+      var endsEl = sched.querySelector('input[name=ends]:checked');
+      var ends = endsEl ? endsEl.value : 'never';
+      var max = parseInt(sched.querySelector('[name=max_count]').value, 10) || 0;
+      var endDate = sched.querySelector('[name=end_date]').value;
+      previewEl.innerHTML = '';
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return;
+      var today = new Date().toISOString().slice(0, 10);
+      var shown = 0;
+      for (var n = 0; n < 400 && shown < 5; n++) {
+        if (ends === 'count' && n >= max) break;
+        var d = occurrence(start, freq, every, n);
+        if (ends === 'date' && endDate && d > endDate) break;
+        if (d < today) continue;
+        var chip = document.createElement('span');
+        chip.className = 'date-chip';
+        chip.textContent = new Date(d + 'T12:00:00Z').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+        previewEl.appendChild(chip);
+        shown++;
+      }
+      if (!shown) previewEl.innerHTML = '<span class="muted small">No upcoming dates with these settings.</span>';
+    };
+    sched.addEventListener('input', renderPreview);
+    sched.addEventListener('change', renderPreview);
+    renderPreview();
+  }
+
   var editor = document.querySelector('[data-doc-editor]');
   if (editor) initEditor(editor);
 
@@ -172,6 +220,7 @@
     var currencySelect = form.querySelector('[data-currency]');
     var discountInput = form.querySelector('[data-discount]');
     var KINDS = ['Service', 'Product', 'Expense', 'Other'];
+    var noDates = form.hasAttribute('data-no-dates');
 
     function blankLine() {
       return { item_date: '', project_id: '', kind: 'Service', description: '', quantity: '1', unit_price: '', taxable: true };
@@ -208,9 +257,11 @@
       lines.forEach(function (line, i) {
         var tr = el('tr');
 
-        var date = el('input', { type: 'date', value: line.item_date || '' });
-        date.addEventListener('input', function () { line.item_date = date.value; });
-        tr.appendChild(el('td', { className: 'c-date' }, [date]));
+        if (!noDates) {
+          var date = el('input', { type: 'date', value: line.item_date || '' });
+          date.addEventListener('input', function () { line.item_date = date.value; });
+          tr.appendChild(el('td', { className: 'c-date' }, [date]));
+        }
 
         var proj = el('select');
         proj.appendChild(el('option', { value: '', text: '—' }));

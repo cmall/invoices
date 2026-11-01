@@ -1,0 +1,141 @@
+<%- include('../partials/head') %>
+<%
+  const json = (v) => JSON.stringify(v).replace(/</g, '\\u003c');
+  const initialLines = (profile.lines || []).map(l => ({
+    project_id: l.project_id || '', kind: l.kind || 'Service', description: l.description || '',
+    quantity: l.quantity, unit_price: u.centsToInput(l.unit_price_cents), taxable: l.taxable === undefined ? true : !!Number(l.taxable),
+  }));
+  const initialTaxes = (profile.taxes || []).map(t => ({ tax_rate_id: t.tax_rate_id, name: t.name, rate: t.rate, reg_number: t.reg_number, fixed_amount_cents: null }));
+  const ends = profile.max_count ? 'count' : profile.end_date ? 'date' : 'never';
+  const action = profile.id ? `/recurring/${profile.id}` : '/recurring';
+%>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Recurring invoice</p>
+    <h1><%= title %></h1>
+  </div>
+  <div class="actions"><a class="btn" href="<%= profile.id ? `/recurring/${profile.id}` : '/recurring' %>">Cancel</a></div>
+</div>
+
+<form method="post" action="<%= action %>" data-doc-editor data-no-dates>
+  <%- include('../partials/csrf') %>
+  <input type="hidden" name="lines_json">
+  <input type="hidden" name="taxes_json">
+  <script type="application/json" id="editor-data"><%- json({ lines: initialLines, taxes: initialTaxes, projects: projects.map(p => ({ id: p.id, client_id: p.client_id, name: p.name, rate: u.centsToInput(p.hourly_rate_cents) })), taxRates: taxRates.map(t => ({ id: t.id, name: t.name, rate: t.rate, reg_number: t.reg_number })), clients: clients.map(c => ({ id: c.id, currency: c.currency })) }) %></script>
+
+  <div class="card form-grid cols-4">
+    <label class="span-2">Client
+      <select name="client_id" data-client-select>
+        <% for (const c of clients) { %><option value="<%= c.id %>" <%= c.id === profile.client_id ? 'selected' : '' %>><%= c.name %></option><% } %>
+      </select>
+    </label>
+    <label>Name <input name="name" value="<%= profile.name %>" placeholder="e.g. Monthly hosting (only you see this)"></label>
+    <label>Currency
+      <select name="currency" data-currency>
+        <% for (const c of currencies) { %><option <%= c === profile.currency ? 'selected' : '' %>><%= c %></option><% } %>
+      </select>
+    </label>
+    <label class="span-2">Invoice subject <input name="subject" value="<%= profile.subject %>" placeholder="e.g. Hosting – {{month}} {{year}}"></label>
+    <label>PO number <input name="po_number" value="<%= profile.po_number %>"></label>
+    <label>Discount % <input name="discount_percent" inputmode="decimal" value="<%= profile.discount_percent || '' %>" data-discount></label>
+    <p class="hint span-4">Placeholders fill in from each invoice's date: <code>{{month}}</code> <code>{{year}}</code> <code>{{quarter}}</code> <code>{{last_month}}</code> <code>{{next_month}}</code> <code>{{date}}</code>. They work in the subject, line descriptions and notes.</p>
+  </div>
+
+  <div class="two-col">
+    <div class="card" data-schedule>
+      <h2><%- include('../partials/icon', { name: 'repeat' }) %> Schedule</h2>
+      <div class="stack">
+        <div class="repeat-row">
+          <span class="field-title">Repeat every</span>
+          <input type="number" name="interval_count" min="1" max="52" value="<%= profile.interval_count || 1 %>" class="w-sm" data-sched-interval>
+          <select name="frequency" data-sched-frequency>
+            <% for (const [k, unit] of Object.entries(frequencies)) { %><option value="<%= k %>" <%= k === profile.frequency ? 'selected' : '' %>><%= unit %>(s)</option><% } %>
+          </select>
+        </div>
+        <label>First invoice date <input type="date" name="start_date" value="<%= profile.start_date %>" required data-sched-start></label>
+        <div>
+          <div class="field-title">Ends</div>
+          <div class="ends-options">
+            <label class="check"><input type="radio" name="ends" value="never" <%= ends === 'never' ? 'checked' : '' %>> Never</label>
+            <label class="check"><input type="radio" name="ends" value="count" <%= ends === 'count' ? 'checked' : '' %>> After <input type="number" name="max_count" min="1" value="<%= profile.max_count || 12 %>" class="w-xs"> invoices</label>
+            <label class="check"><input type="radio" name="ends" value="date" <%= ends === 'date' ? 'checked' : '' %>> On <input type="date" name="end_date" value="<%= profile.end_date || '' %>" class="w-date"></label>
+          </div>
+        </div>
+        <div class="next-dates">
+          <div class="field-title">Next invoice dates</div>
+          <div class="date-chips" data-sched-preview></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><%- include('../partials/icon', { name: 'send' }) %> Delivery</h2>
+      <div class="choice-cards">
+        <label class="choice">
+          <input type="radio" name="send_mode" value="review" <%= profile.send_mode !== 'auto' ? 'checked' : '' %>>
+          <span class="choice-body">
+            <span class="choice-icon"><%- include('../partials/icon', { name: 'eye' }) %></span>
+            <strong>Review first</strong>
+            <span class="muted small">Each invoice is staged as a draft. You check it, adjust if needed, and press Send.</span>
+          </span>
+        </label>
+        <label class="choice">
+          <input type="radio" name="send_mode" value="auto" <%= profile.send_mode === 'auto' ? 'checked' : '' %>>
+          <span class="choice-body">
+            <span class="choice-icon"><%- include('../partials/icon', { name: 'sparkle' }) %></span>
+            <strong>Send automatically</strong>
+            <span class="muted small">Staged as a draft you can still edit, then emailed to the client on the invoice date.</span>
+          </span>
+        </label>
+      </div>
+      <label class="mt">Prepare each invoice this many days before its date
+        <input type="number" name="stage_days" min="0" max="60" value="<%= profile.stage_days ?? 3 %>" class="w-sm">
+      </label>
+      <label class="check mt"><input type="checkbox" name="notify_owner" value="1" <%= profile.notify_owner ? 'checked' : '' %>> Email me when an invoice is ready</label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Line items</h2>
+    <div class="lines-wrap">
+      <table class="lines" data-lines>
+        <thead><tr>
+          <th class="c-project">Project</th><th class="c-kind">Type</th><th>Description</th>
+          <th class="c-qty num">Qty</th><th class="c-price num">Rate</th><th class="c-tax" title="Taxable">Tax</th><th class="c-amount num">Amount</th><th class="c-actions"></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <button type="button" class="btn" data-add-line>+ Add line</button>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <h2>Taxes</h2>
+      <p class="hint">Taxes apply to the lines marked taxable, after any discount.</p>
+      <table class="lines taxes" data-taxes><tbody></tbody></table>
+      <div class="inline-form">
+        <select data-add-tax-select>
+          <option value="">Add a tax…</option>
+          <% for (const t of taxRates) { %><option value="<%= t.id %>"><%= t.name %> (<%= u.formatRate(t.rate) %>)</option><% } %>
+          <option value="custom">Custom tax…</option>
+        </select>
+      </div>
+    </div>
+    <div class="card totals-card">
+      <dl class="totals" data-totals></dl>
+      <p class="hint mt">Each invoice's total</p>
+    </div>
+  </div>
+
+  <div class="card form-grid">
+    <label class="span-2">Notes <span class="hint">shown on each invoice</span><textarea name="notes" rows="3"><%= profile.notes %></textarea></label>
+    <label class="span-2">Terms <textarea name="terms" rows="2"><%= profile.terms %></textarea></label>
+  </div>
+
+  <div class="sticky-actions">
+    <button class="btn primary"><%- include('../partials/icon', { name: 'check' }) %> Save recurring invoice</button>
+    <a class="btn" href="<%= profile.id ? `/recurring/${profile.id}` : '/recurring' %>">Cancel</a>
+  </div>
+</form>
+<%- include('../partials/foot') %>

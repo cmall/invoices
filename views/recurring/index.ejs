@@ -1,0 +1,69 @@
+<%- include('../partials/head') %>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Billing</p>
+    <h1>Recurring invoices</h1>
+  </div>
+  <div class="actions"><a class="btn primary" href="/recurring/new"><%- include('../partials/icon', { name: 'plus' }) %> New recurring invoice</a></div>
+</div>
+
+<% if (staged.length) { %>
+<section class="staged">
+  <div class="section-head"><h2>Staged invoices</h2><span class="muted small">Prepared ahead of their date. Open one to review or edit it.</span></div>
+  <% if (!emailReady && staged.some(d => d.auto_send_on)) { %>
+    <div class="card notice warn"><%- include('../partials/icon', { name: 'alert' }) %><div>Email isn't set up, so automatic sends will be skipped. Set up Postmark in <a href="/settings#email">Settings</a>.</div></div>
+  <% } %>
+  <div class="staged-list">
+    <% for (const d of staged) { %>
+      <div class="staged-item <%= d.auto_send_on ? 'is-auto' : 'is-review' %>">
+        <div class="staged-icon"><%- include('../partials/icon', { name: d.auto_send_on ? 'clock' : 'eye' }) %></div>
+        <div class="staged-main">
+          <div><a href="/invoices/<%= d.id %>"><strong><%= d.number %></strong></a> <span class="muted">· <%= d.client_name %><%= d.subject ? ` · ${d.subject}` : '' %></span></div>
+          <div class="small <%= d.auto_send_on ? 'accent' : 'muted' %>">
+            <% if (d.auto_send_on) { %>Sends automatically <%= d.auto_send_on <= u.today() ? 'within the hour' : `on ${u.formatDate(d.auto_send_on)}` %><% } else { %>Waiting for your review · invoice date <%= u.formatDate(d.issue_date) %><% } %>
+          </div>
+        </div>
+        <div class="staged-amount"><%= u.formatMoney(d.total_cents, d.currency) %></div>
+        <div class="staged-actions">
+          <a class="btn small" href="/invoices/<%= d.id %>">Review</a>
+          <a class="btn small primary" href="/invoices/<%= d.id %>/send">Send now</a>
+        </div>
+      </div>
+    <% } %>
+  </div>
+</section>
+<% } %>
+
+<section>
+  <div class="section-head"><h2>Schedules</h2></div>
+  <% if (!profiles.length) { %>
+    <div class="card empty">
+      <div class="empty-icon"><%- include('../partials/icon', { name: 'repeat', size: 22 }) %></div>
+      <p><strong>No recurring invoices yet.</strong></p>
+      <p class="muted">Bill a client on a schedule (monthly retainers, hosting, subscriptions). Each invoice is staged as a draft before its date, so you can review it or let it send itself.</p>
+      <p><a class="btn primary" href="/recurring/new">Create one</a></p>
+      <p class="hint">Tip: open any invoice and choose <strong>Make recurring</strong> to start from it.</p>
+    </div>
+  <% } else { %>
+  <div class="profile-grid">
+    <% for (const p of profiles) { %>
+      <a class="profile-card <%= p.active && !p.finished ? '' : 'inactive' %>" href="/recurring/<%= p.id %>">
+        <div class="profile-top">
+          <span class="profile-icon"><%- include('../partials/icon', { name: 'repeat' }) %></span>
+          <% if (!p.active) { %><span class="badge badge-draft">paused</span>
+          <% } else if (p.finished) { %><span class="badge badge-void">finished</span>
+          <% } else { %><span class="badge <%= p.send_mode === 'auto' ? 'badge-paid' : 'badge-sent' %>"><%= p.send_mode === 'auto' ? 'auto-send' : 'review first' %></span><% } %>
+        </div>
+        <div class="profile-name"><%= p.name || p.subject || 'Untitled' %></div>
+        <div class="muted small"><%= p.client_name %></div>
+        <div class="profile-amount"><%= u.formatMoney(p.total_cents, p.currency) %></div>
+        <div class="profile-meta">
+          <span><%- include('../partials/icon', { name: 'repeat', size: 14 }) %> <%= p.schedule_text %></span>
+          <% if (p.active && p.next_date) { %><span><%- include('../partials/icon', { name: 'calendar', size: 14 }) %> Next: <%= u.formatDate(p.next_date) %></span><% } %>
+        </div>
+      </a>
+    <% } %>
+  </div>
+  <% } %>
+</section>
+<%- include('../partials/foot') %>

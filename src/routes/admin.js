@@ -13,6 +13,7 @@ const reminders = require('../reminders');
 const reports = require('../reports');
 const harvest = require('../harvest');
 const updater = require('../updater');
+const recurring = require('../recurring');
 const { renderPdf, pdfFilename, publicUrl } = require('../pdf');
 const {
   CURRENCIES,
@@ -62,7 +63,9 @@ router.use((req, res, next) => (req.is('multipart/form-data') ? next() : auth.ch
 // ---------- Dashboard ----------
 
 router.get('/', (req, res) => {
-  const drafts = documents.listDocuments('invoice', { status: 'draft' });
+  const staged = recurring.stagedInvoices();
+  const stagedIds = new Set(staged.map((d) => d.id));
+  const drafts = documents.listDocuments('invoice', { status: 'draft' }).filter((d) => !stagedIds.has(d.id));
   const outstandingInvoices = documents.listDocuments('invoice', { status: 'outstanding' });
   const openEstimates = documents.listDocuments('estimate', { status: 'sent' });
   const recentPayments = db
@@ -79,6 +82,7 @@ router.get('/', (req, res) => {
   res.render('dashboard', {
     title: 'Dashboard',
     drafts,
+    staged,
     outstandingInvoices,
     openEstimates,
     recentPayments,
@@ -363,7 +367,9 @@ function documentRoutes(kind) {
   });
 
   router.get(`${base}/:id`, load, (req, res) => {
+    const recurringProfile = req.doc.recurring_id ? db.prepare('SELECT id, name, subject, send_mode FROM recurring WHERE id = ?').get(req.doc.recurring_id) : null;
     res.render('documents/show', {
+      recurringProfile,
       title: `${label} ${req.doc.number}`,
       doc: req.doc,
       kind,
@@ -578,6 +584,180 @@ function documentRoutes(kind) {
 
 documentRoutes('invoice');
 documentRoutes('estimate');
+
+// ---------- Automatic send on staged invoices ----------
+
+router.post('/invoices/:id/auto-send', (req, res) => {
+  const doc = documents.getDocument(req.params.id);
+  if (!doc || doc.kind !== 'invoice') return res.status(404).render('error', { title: 'Not found', message: 'Invoice not found.' });
+  if (doc.status !== 'draft') return res.redirect(`/invoices/${doc.id}?err=${q('Only draft invoices can be scheduled')}`);
+  if (req.body.action === 'cancel') {
+    db.prepare('UPDATE documents SET auto_send_on = NULL WHERE id = ?').run(doc.id);
+    documents.logActivity(doc.id, 'Automatic send cancelled');
+    return res.redirect(`/invoices/${doc.id}?msg=${q('Automatic send cancelled. It will wait for you to send it.')}`);
+  }
+  const date = isIsoDate(req.body.date) ? req.body.date : null;
+  if (!date || date < today()) return res.redirect(`/invoices/${doc.id}?err=${q('Choose today or a future date')}`);
+  db.prepare('UPDATE documents SET auto_send_on = ? WHERE id = ?').run(date, doc.id);
+  documents.logActivity(doc.id, `Scheduled to be emailed automatically on ${date}`);
+  res.redirect(`/invoices/${doc.id}?msg=${q('Automatic send scheduled')}`);
+});
+
+// ---------- Recurring invoices ----------
+
+function profileFromBody(b) {
+  const frequency = Object.keys(recurring.FREQUENCIES).includes(b.frequency) ? b.frequency : 'monthly';
+  const ends = String(b.ends || 'never');
+  return {
+    client_id: Number(b.client_id),
+    name: String(b.name || '').trim(),
+    subject: String(b.subject || '').trim(),
+    po_number: String(b.po_number || '').trim(),
+    currency: CURRENCIES.includes(b.currency) ? b.currency : settings.get('default_currency'),
+    discount_percent: Math.min(100, Math.max(0, parseNumber(b.discount_percent, 0))),
+    notes: String(b.notes || ''),
+    terms: String(b.terms || ''),
+    lines: linesFromBody(b).map(({ item_date, ...l }) => l),
+    taxes: taxesFromBody(b).map((t) => ({ ...t, fixed_amount_cents: null })),
+    frequency,
+    interval_count: Math.min(52, Math.max(1, Math.round(parseNumber(b.interval_count, 1)))),
+    start_date: isIsoDate(b.start_date) ? b.start_date : today(),
+    end_date: ends === 'date' && isIsoDate(b.end_date) ? b.end_date : null,
+    max_count: ends === 'count' ? Math.max(1, Math.round(parseNumber(b.max_count, 1))) : null,
+    send_mode: b.send_mode === 'auto' ? 'auto' : 'review',
+    stage_days: Math.min(60, Math.max(0, Math.round(parseNumber(b.stage_days, 3)))),
+    notify_owner: b.notify_owner === '1',
+  };
+}
+
+function profileFormLocals(profile, title) {
+  return {
+    title,
+    profile,
+    clients: db.prepare('SELECT id, name, currency FROM clients WHERE archived = 0 OR id = ? ORDER BY name COLLATE NOCASE').all(profile.client_id || 0),
+    projects: activeProjects(),
+    taxRates: taxRates(),
+    currencies: CURRENCIES,
+    frequencies: recurring.FREQUENCIES,
+  };
+}
+
+router.get('/recurring', (req, res) => {
+  const profiles = recurring.listProfiles();
+  const staged = recurring.stagedInvoices().map((d) => ({ ...d, balance_cents: d.total_cents - d.paid_cents }));
+  res.render('recurring/index', { title: 'Recurring', profiles, staged, emailReady: email.isConfigured() });
+});
+
+router.get('/recurring/new', (req, res) => {
+  const clients = db.prepare('SELECT * FROM clients WHERE archived = 0 ORDER BY name COLLATE NOCASE').all();
+  if (!clients.length) return res.redirect(`/clients/new?err=${q('Add a client first')}`);
+  let profile = {
+    client_id: Number(req.query.client_id) || clients[0].id,
+    name: '',
+    subject: '{{month}} {{year}}',
+    po_number: '',
+    discount_percent: 0,
+    notes: settings.get('default_invoice_notes'),
+    terms: settings.get('default_invoice_terms'),
+    lines: [],
+    taxes: [],
+    frequency: 'monthly',
+    interval_count: 1,
+    start_date: today(),
+    end_date: null,
+    max_count: null,
+    send_mode: 'review',
+    stage_days: 3,
+    notify_owner: 1,
+  };
+  const from = Number(req.query.from) ? documents.getDocument(req.query.from) : null;
+  if (from && from.kind === 'invoice') {
+    profile = {
+      ...profile,
+      client_id: from.client_id,
+      name: from.subject || '',
+      subject: from.subject,
+      po_number: from.po_number,
+      discount_percent: from.discount_percent,
+      notes: from.notes,
+      terms: from.terms,
+      lines: from.lines.map((l) => ({ project_id: l.project_id, kind: l.kind, description: l.description, quantity: l.quantity, unit_price_cents: l.unit_price_cents, taxable: l.taxable })),
+      taxes: from.taxes.map((t) => ({ tax_rate_id: t.tax_rate_id, name: t.name, rate: t.rate, reg_number: t.reg_number })),
+    };
+  }
+  const client = clients.find((c) => c.id === profile.client_id) || clients[0];
+  profile.currency = from ? from.currency : client.currency;
+  if (!from) {
+    try {
+      const ids = JSON.parse(client.default_tax_ids || '[]').map(Number);
+      profile.taxes = taxRates().filter((t) => ids.includes(t.id)).map((t) => ({ tax_rate_id: t.id, name: t.name, rate: t.rate, reg_number: t.reg_number }));
+    } catch {
+      /* ignore */
+    }
+  }
+  res.render('recurring/form', profileFormLocals(profile, 'New recurring invoice'));
+});
+
+router.post('/recurring', (req, res) => {
+  const data = profileFromBody(req.body);
+  if (!db.prepare('SELECT 1 FROM clients WHERE id = ?').get(data.client_id)) return res.redirect(`/recurring/new?err=${q('Choose a client')}`);
+  const id = recurring.saveProfile(null, data);
+  recurring.skipPastOccurrences(id);
+  res.redirect(`/recurring/${id}?msg=${q('Recurring invoice saved')}`);
+});
+
+function loadProfile(req, res, next) {
+  const p = recurring.getProfile(req.params.id);
+  if (!p) return res.status(404).render('error', { title: 'Not found', message: 'Recurring invoice not found.' });
+  req.profile = p;
+  next();
+}
+
+router.get('/recurring/:id', loadProfile, (req, res) => {
+  const p = req.profile;
+  const invoices = db
+    .prepare(`SELECT d.*, c.name AS client_name FROM documents d JOIN clients c ON c.id = d.client_id WHERE d.recurring_id = ? ORDER BY d.issue_date DESC, d.id DESC`)
+    .all(p.id)
+    .map((d) => {
+      d.balance_cents = d.total_cents - d.paid_cents;
+      d.display_status = d.status === 'draft' && d.auto_send_on ? 'scheduled' : d.status;
+      return d;
+    });
+  const upcoming = p.active ? recurring.upcomingDates(p, 6) : [];
+  res.render('recurring/show', { title: p.name || p.subject || 'Recurring invoice', p, invoices, upcoming, periodVars: recurring.periodVars(p.next_date || today()) });
+});
+
+router.get('/recurring/:id/edit', loadProfile, (req, res) => {
+  res.render('recurring/form', profileFormLocals(req.profile, `Edit ${req.profile.name || 'recurring invoice'}`));
+});
+
+router.post('/recurring/:id', loadProfile, (req, res) => {
+  const data = profileFromBody(req.body);
+  if (!db.prepare('SELECT 1 FROM clients WHERE id = ?').get(data.client_id)) return res.redirect(`/recurring/${req.profile.id}/edit?err=${q('Choose a client')}`);
+  const startChanged = data.start_date !== req.profile.start_date;
+  recurring.saveProfile(req.profile.id, data);
+  if (startChanged) recurring.skipPastOccurrences(req.profile.id);
+  res.redirect(`/recurring/${req.profile.id}?msg=${q('Recurring invoice saved')}`);
+});
+
+router.post('/recurring/:id/toggle', loadProfile, (req, res) => {
+  const resume = !req.profile.active;
+  recurring.setActive(req.profile.id, resume);
+  // Resuming never creates a backlog for the time it was paused.
+  if (resume) recurring.skipPastOccurrences(req.profile.id);
+  res.redirect(`/recurring/${req.profile.id}?msg=${q(resume ? 'Resumed' : 'Paused')}`);
+});
+
+router.post('/recurring/:id/generate', loadProfile, async (req, res) => {
+  if (!req.profile.next_date) return res.redirect(`/recurring/${req.profile.id}?err=${q('This schedule has finished')}`);
+  const id = recurring.generateNext(req.profile.id);
+  res.redirect(`/invoices/${id}?msg=${q('Next invoice created. Review it below.')}`);
+});
+
+router.post('/recurring/:id/delete', loadProfile, (req, res) => {
+  recurring.deleteProfile(req.profile.id);
+  res.redirect(`/recurring?msg=${q('Recurring invoice deleted. Invoices it already created are kept.')}`);
+});
 
 // ---------- Reports ----------
 
