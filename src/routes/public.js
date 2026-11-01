@@ -13,8 +13,10 @@ const { formatMoney } = require('../util');
 
 const router = express.Router();
 
+// The main business logo, or another business's logo with ?b=<id>.
 router.get('/logo', (req, res) => {
-  const file = settings.get('logo_file');
+  const b = Number(req.query.b) ? require('../businesses').get(Number(req.query.b)) : null;
+  const file = b ? b.logo_file : settings.get('logo_file');
   const full = file && path.join(config.dataDir, file);
   if (!full || !fs.existsSync(full)) return res.status(404).end();
   res.setHeader('Cache-Control', 'public, max-age=300');
@@ -29,6 +31,8 @@ function loadPublic(kind) {
       return res.status(404).render('error', { title: 'Not found', message: 'This link is not valid.' });
     }
     req.doc = doc;
+    // Client pages show the branding of the business the document is from.
+    res.locals.s = require('../businesses').effective(doc.business_id);
     next();
   };
 }

@@ -2,13 +2,13 @@
 <div class="page-head"><h1>Settings</h1></div>
 
 <nav class="subnav">
-  <a href="#business">Business</a><a href="#branding">Branding</a><a href="#taxes">Taxes</a><a href="#invoicing">Invoicing</a>
+  <a href="#business">Business</a><a href="/businesses">More businesses</a><a href="#branding">Branding</a><a href="#taxes">Taxes</a><a href="#invoicing">Invoicing</a>
   <a href="#email">Email</a><a href="#payments">Online payments</a><a href="#reminders">Reminders</a><a href="#templates">Email templates</a><a href="#data">Data</a>
 </nav>
 
 <form method="post" action="/settings" class="card form-grid" id="business">
   <%- include('partials/csrf') %><input type="hidden" name="_section" value="business">
-  <h2 class="span-2">Business details</h2>
+  <div class="span-2 section-head"><h2>Business details</h2><a class="small" href="/businesses">Invoice from another business too? →</a></div>
   <p class="hint span-2">Shown on every invoice, estimate and email.</p>
   <label>Business name <input name="business_name" value="<%= s.business_name %>"></label>
   <label>Email <input type="email" name="business_email" value="<%= s.business_email %>"></label>

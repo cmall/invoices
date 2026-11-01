@@ -22,7 +22,7 @@ function isEnabled() {
 async function createCheckoutSession(doc) {
   const balance = doc.total_cents - doc.paid_cents;
   if (balance <= 0) throw new Error('Nothing to pay');
-  const s = settings.getAll();
+  const s = require('./businesses').effective(doc.business_id);
   const url = publicUrl(doc);
   const description = `${s.business_name ? `${s.business_name} ` : ''}invoice ${doc.number}`;
   const session = await stripe().checkout.sessions.create({

@@ -36,6 +36,9 @@ const DEFAULTS = {
   // Days after the due date to send each reminder.
   reminder_days: '3, 14, 30',
   notify_on_payment: '1',
+  // In-app updates: repository (blank = the one this copy was cloned from) and branch.
+  update_repo: '',
+  update_branch: '',
 
   email_invoice_subject: 'Invoice {{number}} from {{business_name}}',
   email_invoice_body:

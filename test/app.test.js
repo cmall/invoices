@@ -305,7 +305,7 @@ test('pages render without errors', async () => {
     assert.strictEqual(res.status, 200, `${p} -> ${res.status}`);
   }
   const csv = await (await get('/reports/2026/invoices.csv')).text();
-  assert.match(csv, /INV-1001,Globex/);
+  assert.match(csv, /INV-1001,Acme Studio,Globex/);
 });
 
 test('reports: tax totals', () => {

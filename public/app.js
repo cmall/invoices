@@ -99,6 +99,15 @@
     setTimeout(poll, 1000);
   }
 
+  // Checkbox that shows/hides a section (data-toggle-target="#id").
+  document.querySelectorAll('[data-toggle-target]').forEach(function (cb) {
+    var target = document.querySelector(cb.getAttribute('data-toggle-target'));
+    if (!target) return;
+    var sync = function () { target.hidden = !cb.checked; };
+    cb.addEventListener('change', sync);
+    sync();
+  });
+
   // Auto-submit file inputs (logo upload).
   document.querySelectorAll('[data-autosubmit]').forEach(function (input) {
     input.addEventListener('change', function () { if (input.files.length) input.form.submit(); });

@@ -34,7 +34,12 @@
     <label><%= kind === 'invoice' ? 'Due date' : 'Valid until' %> <input type="date" name="due_date" value="<%= doc.due_date || '' %>"></label>
     <label>PO number <input name="po_number" value="<%= doc.po_number %>"></label>
     <label>Discount % <input name="discount_percent" inputmode="decimal" value="<%= doc.discount_percent || '' %>" data-discount></label>
+    <% if (multiBusiness) { %>
+      <label class="span-2">Subject <input name="subject" value="<%= doc.subject %>"></label>
+      <%- include('../partials/business-select', { selected: doc.business_id || null, cls: 'span-2' }) %>
+    <% } else { %>
     <label class="span-4">Subject <input name="subject" value="<%= doc.subject %>"></label>
+    <% } %>
   </div>
 
   <div class="card">

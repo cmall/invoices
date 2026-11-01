@@ -3,7 +3,7 @@
 <div class="page-head">
   <div>
     <h1><%= label %> <%= doc.number %> <%- include('../partials/status', { status: doc.display_status }) %></h1>
-    <div class="muted"><a href="/clients/<%= doc.client_id %>"><%= doc.client_name %></a><%= doc.subject ? ` · ${doc.subject}` : '' %></div>
+    <div class="muted"><% if (multiBusiness) { %><span class="from-pill" style="--accent:<%= biz.accent_color %>"><%= businessName %></span> → <% } %><a href="/clients/<%= doc.client_id %>"><%= doc.client_name %></a><%= doc.subject ? ` · ${doc.subject}` : '' %></div>
   </div>
   <div class="actions">
     <% if (doc.status !== 'void' && doc.status !== 'invoiced') { %><a class="btn" href="<%= base %>/<%= doc.id %>/edit">Edit</a><% } %>

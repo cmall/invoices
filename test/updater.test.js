@@ -80,3 +80,41 @@ test('update fast-forwards and switches to main', async () => {
   assert.strictEqual(r.check.behind, 0);
   assert.strictEqual(r.check.switchBranch, false);
 });
+
+test('repository names are normalised and validated', () => {
+  assert.strictEqual(updater.normalizeRepo('someone/invoices'), 'https://github.com/someone/invoices.git');
+  assert.strictEqual(updater.normalizeRepo('git@github.com:someone/invoices.git'), 'git@github.com:someone/invoices.git');
+  assert.strictEqual(updater.normalizeRepo('https://github.com/someone/invoices.git'), 'https://github.com/someone/invoices.git');
+  assert.throws(() => updater.normalizeRepo('--upload-pack=evil'));
+  assert.throws(() => updater.normalizeRepo('https://x.test/a b'));
+});
+
+test('updates can come from a fork', async () => {
+  // A fork of the project with its own extra commit on main.
+  const fork = path.join(tmp, 'fork.git');
+  const forkDev = path.join(tmp, 'fork-dev');
+  git(tmp, 'clone', '--bare', origin, fork);
+  git(tmp, 'clone', fork, forkDev);
+  fs.writeFileSync(path.join(forkDev, 'custom.txt'), 'my change\n');
+  git(forkDev, 'add', '.');
+  git(forkDev, 'commit', '-m', 'fork: custom change');
+  git(forkDev, 'push', 'origin', 'HEAD:main');
+
+  require('../src/settings').set('update_repo', fork);
+  const r = await updater.check();
+  assert.strictEqual(r.check.error, '');
+  assert.strictEqual(r.check.behind, 1);
+  assert.strictEqual(r.check.commits[0].subject, 'fork: custom change');
+  assert.strictEqual(r.source.repo, fork);
+
+  updater.startUpdate();
+  const job = await waitForJob();
+  assert.strictEqual(job.ok, true, job.log);
+  assert.ok(fs.existsSync(path.join(server, 'custom.txt')));
+  assert.strictEqual(git(server, 'remote', 'get-url', 'updates'), fork);
+
+  // Switching back to the original: the fork is ahead, so it is reported, not forced.
+  require('../src/settings').set('update_repo', '');
+  const back = await updater.check();
+  assert.match(back.check.error, /commit\(s\) that are not on main/);
+});

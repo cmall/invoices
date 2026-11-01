@@ -10,7 +10,7 @@
   <% for (const d of docs) { %>
     <tr class="<%= d.status === 'void' ? 'dim' : '' %>">
       <td><a href="<%= base %>/<%= d.id %>"><strong><%= d.number %></strong></a></td>
-      <% if (showClient) { %><td><%= d.client_name %></td><% } %>
+      <% if (showClient) { %><td><%= d.client_name %><% if (multiBusiness) { %><div class="muted small">from <%= d.business_name || businessChoices[0].name %></div><% } %></td><% } %>
       <td class="truncate"><%= d.subject %></td>
       <td><%= u.formatDate(d.issue_date) %></td>
       <td><%= u.formatDate(d.due_date) %></td>

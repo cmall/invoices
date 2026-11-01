@@ -14,6 +14,7 @@ const reports = require('../reports');
 const harvest = require('../harvest');
 const updater = require('../updater');
 const recurring = require('../recurring');
+const businesses = require('../businesses');
 const { renderPdf, pdfFilename, publicUrl } = require('../pdf');
 const {
   CURRENCIES,
@@ -59,6 +60,22 @@ router.post('/logout', (req, res) => {
 // Everything below requires login. Multipart forms check CSRF after multer parses them.
 router.use(auth.requireAuth);
 router.use((req, res, next) => (req.is('multipart/form-data') ? next() : auth.checkCsrf(req, res, next)));
+
+// "Bill from" choices for every page; pickers only appear once you add a second business.
+router.use((req, res, next) => {
+  res.locals.businessChoices = businesses.choices();
+  res.locals.multiBusiness = res.locals.businessChoices.length > 1;
+  next();
+});
+
+// Form value -> business id: 'main' = main business (null), a number = that business,
+// blank/absent = undefined (keep the default, e.g. the client's business).
+function businessField(v) {
+  if (v === undefined || v === '') return undefined;
+  if (v === 'main') return null;
+  const b = businesses.get(Number(v));
+  return b ? b.id : undefined;
+}
 
 // ---------- Dashboard ----------
 
@@ -122,6 +139,7 @@ function clientFromBody(b) {
     payment_terms_days: terms === '' ? null : Math.max(0, Math.round(Number(terms) || 0)),
     default_tax_ids: JSON.stringify(taxIds),
     notes: String(b.notes || ''),
+    business_id: businessField(b.business_id) ?? null,
   };
 }
 
@@ -153,8 +171,8 @@ router.post('/clients', (req, res) => {
   if (!c.name) return res.redirect(`/clients/new?err=${q('Name is required')}`);
   const info = db
     .prepare(
-      `INSERT INTO clients (name, contact_name, email, cc_emails, address, currency, payment_terms_days, default_tax_ids, notes)
-       VALUES (@name, @contact_name, @email, @cc_emails, @address, @currency, @payment_terms_days, @default_tax_ids, @notes)`,
+      `INSERT INTO clients (name, contact_name, email, cc_emails, address, currency, payment_terms_days, default_tax_ids, notes, business_id)
+       VALUES (@name, @contact_name, @email, @cc_emails, @address, @currency, @payment_terms_days, @default_tax_ids, @notes, @business_id)`,
     )
     .run(c);
   res.redirect(`/clients/${info.lastInsertRowid}?msg=${q('Client added')}`);
@@ -188,7 +206,8 @@ router.post('/clients/:id', loadClient, (req, res) => {
   if (!c.name) return res.redirect(`/clients/${req.client.id}/edit?err=${q('Name is required')}`);
   db.prepare(
     `UPDATE clients SET name = @name, contact_name = @contact_name, email = @email, cc_emails = @cc_emails, address = @address,
-       currency = @currency, payment_terms_days = @payment_terms_days, default_tax_ids = @default_tax_ids, notes = @notes
+       currency = @currency, payment_terms_days = @payment_terms_days, default_tax_ids = @default_tax_ids, notes = @notes,
+       business_id = @business_id
      WHERE id = @id`,
   ).run({ ...c, id: req.client.id });
   res.redirect(`/clients/${req.client.id}?msg=${q('Client saved')}`);
@@ -337,6 +356,7 @@ function documentRoutes(kind) {
       status: String(req.query.status || ''),
       year: /^\d{4}$/.test(req.query.year || '') ? req.query.year : '',
       client_id: Number(req.query.client_id) || '',
+      business: String(req.query.business || ''),
       q: String(req.query.q || '').trim(),
     };
     const docs = documents.listDocuments(kind, filters);
@@ -362,7 +382,10 @@ function documentRoutes(kind) {
     if (!db.prepare('SELECT 1 FROM clients WHERE id = ?').get(clientId)) {
       return res.redirect(`${base}/new?err=${q('Choose a client first')}`);
     }
-    const id = documents.createDocument(kind, clientId, { subject: String(req.body.subject || '').trim() });
+    const id = documents.createDocument(kind, clientId, {
+      subject: String(req.body.subject || '').trim(),
+      business_id: businessField(req.body.business_id),
+    });
     res.redirect(`${base}/${id}/edit`);
   });
 
@@ -370,6 +393,8 @@ function documentRoutes(kind) {
     const recurringProfile = req.doc.recurring_id ? db.prepare('SELECT id, name, subject, send_mode FROM recurring WHERE id = ?').get(req.doc.recurring_id) : null;
     res.render('documents/show', {
       recurringProfile,
+      biz: businesses.effective(req.doc.business_id),
+      businessName: businesses.nameOf(req.doc.business_id),
       title: `${label} ${req.doc.number}`,
       doc: req.doc,
       kind,
@@ -410,6 +435,7 @@ function documentRoutes(kind) {
       discount_percent: Math.min(100, Math.max(0, parseNumber(b.discount_percent, 0))),
       notes: String(b.notes || ''),
       terms: String(b.terms || ''),
+      business_id: businessField(b.business_id),
     };
     if (!fields.number) return res.redirect(`${base}/${req.doc.id}/edit?err=${q('Number is required')}`);
     if (req.doc.paid_cents && fields.currency !== req.doc.currency) {
@@ -624,6 +650,7 @@ function profileFromBody(b) {
     start_date: isIsoDate(b.start_date) ? b.start_date : today(),
     end_date: ends === 'date' && isIsoDate(b.end_date) ? b.end_date : null,
     max_count: ends === 'count' ? Math.max(1, Math.round(parseNumber(b.max_count, 1))) : null,
+    business_id: businessField(b.business_id),
     send_mode: b.send_mode === 'auto' ? 'auto' : 'review',
     stage_days: Math.min(60, Math.max(0, Math.round(parseNumber(b.stage_days, 3)))),
     notify_owner: b.notify_owner === '1',
@@ -675,6 +702,7 @@ router.get('/recurring/new', (req, res) => {
     profile = {
       ...profile,
       client_id: from.client_id,
+      business_id: from.business_id || null,
       name: from.subject || '',
       subject: from.subject,
       po_number: from.po_number,
@@ -700,7 +728,9 @@ router.get('/recurring/new', (req, res) => {
 
 router.post('/recurring', (req, res) => {
   const data = profileFromBody(req.body);
-  if (!db.prepare('SELECT 1 FROM clients WHERE id = ?').get(data.client_id)) return res.redirect(`/recurring/new?err=${q('Choose a client')}`);
+  const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(data.client_id);
+  if (!client) return res.redirect(`/recurring/new?err=${q('Choose a client')}`);
+  if (data.business_id === undefined) data.business_id = client.business_id || null;
   const id = recurring.saveProfile(null, data);
   recurring.skipPastOccurrences(id);
   res.redirect(`/recurring/${id}?msg=${q('Recurring invoice saved')}`);
@@ -734,6 +764,7 @@ router.get('/recurring/:id/edit', loadProfile, (req, res) => {
 router.post('/recurring/:id', loadProfile, (req, res) => {
   const data = profileFromBody(req.body);
   if (!db.prepare('SELECT 1 FROM clients WHERE id = ?').get(data.client_id)) return res.redirect(`/recurring/${req.profile.id}/edit?err=${q('Choose a client')}`);
+  if (data.business_id === undefined) data.business_id = req.profile.business_id || null;
   const startChanged = data.start_date !== req.profile.start_date;
   recurring.saveProfile(req.profile.id, data);
   if (startChanged) recurring.skipPastOccurrences(req.profile.id);
@@ -766,13 +797,16 @@ router.get('/reports', (req, res) => {
   const thisYear = today().slice(0, 4);
   if (!years.includes(thisYear)) years.unshift(thisYear);
   const year = /^\d{4}$/.test(req.query.year || '') ? req.query.year : thisYear;
-  res.render('reports', { title: `Reports ${year}`, years, year, r: reports.yearReport(year), outstanding: reports.outstanding() });
+  const business = req.query.business === 'main' || businesses.get(Number(req.query.business)) ? String(req.query.business) : '';
+  const title = `Reports ${year}${business ? ` · ${businesses.nameOf(business === 'main' ? null : Number(business))}` : ''}`;
+  res.render('reports', { title, years, year, business, r: reports.yearReport(year, business), outstanding: reports.outstanding() });
 });
 
 router.get('/reports/:year/:file', (req, res) => {
   const year = req.params.year;
   if (!/^\d{4}$/.test(year)) return res.status(404).end();
-  const csv = req.params.file === 'invoices.csv' ? reports.invoicesCsv(year) : req.params.file === 'payments.csv' ? reports.paymentsCsv(year) : null;
+  const business = req.query.business === 'main' || businesses.get(Number(req.query.business)) ? String(req.query.business) : '';
+  const csv = req.params.file === 'invoices.csv' ? reports.invoicesCsv(year, business) : req.params.file === 'payments.csv' ? reports.paymentsCsv(year, business) : null;
   if (!csv) return res.status(404).end();
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', `attachment; filename="${req.params.file.replace('.csv', '')}-${year}.csv"`);
@@ -823,17 +857,27 @@ const upload = multer({
   limits: { fileSize: 2 * 1024 * 1024 },
 });
 
-router.post('/settings/logo', upload.single('logo'), auth.checkCsrf, (req, res) => {
-  const f = req.file;
-  if (!f) return res.redirect(`/settings?err=${q('Choose an image file')}#branding`);
+// Validates an uploaded logo and writes it to the data folder. Returns { name } or { error }.
+function storeLogo(f, prefix = 'logo') {
+  if (!f) return { error: 'Choose an image file' };
   const isPng = f.buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
   const isJpg = f.buffer[0] === 0xff && f.buffer[1] === 0xd8;
-  if (!isPng && !isJpg) return res.redirect(`/settings?err=${q('Logo must be a PNG or JPEG image')}#branding`);
-  const old = settings.get('logo_file');
-  const name = `logo-${Date.now()}.${isPng ? 'png' : 'jpg'}`;
+  if (!isPng && !isJpg) return { error: 'Logo must be a PNG or JPEG image' };
+  const name = `${prefix}-${Date.now()}.${isPng ? 'png' : 'jpg'}`;
   fs.writeFileSync(path.join(config.dataDir, name), f.buffer);
-  settings.set('logo_file', name);
-  if (old && old !== name) fs.rmSync(path.join(config.dataDir, old), { force: true });
+  return { name };
+}
+
+function removeLogo(name) {
+  if (name && /^[\w.-]+$/.test(name)) fs.rmSync(path.join(config.dataDir, name), { force: true });
+}
+
+router.post('/settings/logo', upload.single('logo'), auth.checkCsrf, (req, res) => {
+  const r = storeLogo(req.file);
+  if (r.error) return res.redirect(`/settings?err=${q(r.error)}#branding`);
+  const old = settings.get('logo_file');
+  settings.set('logo_file', r.name);
+  if (old && old !== r.name) removeLogo(old);
   res.redirect(`/settings?msg=${q('Logo uploaded')}#branding`);
 });
 
@@ -894,6 +938,84 @@ router.post('/settings/run-reminders', async (req, res) => {
   res.redirect(`/settings?msg=${q(`Reminder check finished (${due} due)`)}#reminders`);
 });
 
+
+// ---------- Businesses ----------
+
+function businessFromBody(b) {
+  const out = {};
+  for (const k of [...businesses.IDENTITY_KEYS, ...businesses.FALLBACK_KEYS, ...businesses.NUMBERING_KEYS]) {
+    if (k in b) out[k] = String(b[k] ?? '').trim();
+  }
+  for (const k of ['accent_color', 'heading_color']) if (out[k] && !/^#[0-9a-f]{6}$/i.test(out[k])) out[k] = '';
+  if (out.invoice_font && !['modern', 'classic'].includes(out.invoice_font)) out.invoice_font = '';
+  if (out.logo_size && !['small', 'medium', 'large'].includes(out.logo_size)) out.logo_size = '';
+  for (const k of ['invoice_next_number', 'estimate_next_number']) if (out[k]) out[k] = String(Math.max(1, Math.round(Number(out[k]) || 1)));
+  out.own_numbering = b.own_numbering === '1' ? '1' : '0';
+  return out;
+}
+
+router.get('/businesses', (req, res) => {
+  const counts = new Map(
+    db.prepare("SELECT business_id, COUNT(*) AS n FROM documents WHERE kind = 'invoice' GROUP BY business_id").all().map((r) => [r.business_id, r.n]),
+  );
+  res.render('businesses/index', { title: 'Businesses', list: businesses.list({ includeArchived: true }), counts, main: businesses.effective(null) });
+});
+
+router.get('/businesses/new', (req, res) => {
+  res.render('businesses/form', { title: 'Add a business', biz: { own_numbering: '0' }, main: businesses.effective(null) });
+});
+
+router.post('/businesses', (req, res) => {
+  const data = businessFromBody(req.body);
+  if (!data.business_name) return res.redirect(`/businesses/new?err=${q('Enter the business or person name')}`);
+  const id = businesses.save(null, data);
+  res.redirect(`/businesses/${id}?msg=${q('Business added. Upload a logo below if it has one.')}`);
+});
+
+function loadBusiness(req, res, next) {
+  const b = businesses.get(Number(req.params.id));
+  if (!b) return res.status(404).render('error', { title: 'Not found', message: 'Business not found.' });
+  req.biz = b;
+  next();
+}
+
+router.get('/businesses/:id', loadBusiness, (req, res) => {
+  res.render('businesses/form', {
+    title: req.biz.name,
+    biz: req.biz,
+    main: businesses.effective(null),
+    nextInvoice: documents.peekNextNumber('invoice', req.biz.id),
+    nextEstimate: documents.peekNextNumber('estimate', req.biz.id),
+  });
+});
+
+router.post('/businesses/:id', loadBusiness, (req, res) => {
+  const data = businessFromBody(req.body);
+  if (!data.business_name) return res.redirect(`/businesses/${req.biz.id}?err=${q('Enter the business or person name')}`);
+  businesses.save(req.biz.id, data);
+  res.redirect(`/businesses/${req.biz.id}?msg=${q('Business saved')}`);
+});
+
+router.post('/businesses/:id/logo', upload.single('logo'), auth.checkCsrf, loadBusiness, (req, res) => {
+  const r = storeLogo(req.file, `logo-b${req.biz.id}`);
+  if (r.error) return res.redirect(`/businesses/${req.biz.id}?err=${q(r.error)}#branding`);
+  const old = req.biz.logo_file;
+  businesses.setField(req.biz.id, 'logo_file', r.name);
+  if (old && old !== r.name) removeLogo(old);
+  res.redirect(`/businesses/${req.biz.id}?msg=${q('Logo uploaded')}#branding`);
+});
+
+router.post('/businesses/:id/logo/delete', loadBusiness, (req, res) => {
+  removeLogo(req.biz.logo_file);
+  businesses.setField(req.biz.id, 'logo_file', '');
+  res.redirect(`/businesses/${req.biz.id}?msg=${q('Logo removed')}#branding`);
+});
+
+router.post('/businesses/:id/archive', loadBusiness, (req, res) => {
+  businesses.setArchived(req.biz.id, !req.biz.archived);
+  res.redirect(`/businesses?msg=${q(req.biz.archived ? 'Business restored' : 'Business archived. Its invoices are kept.')}`);
+});
+
 // ---------- Import ----------
 
 router.get('/import', (req, res) => {
@@ -931,6 +1053,23 @@ router.get('/updates', async (req, res) => {
 router.post('/updates/check', async (req, res) => {
   await updater.check();
   res.redirect('/updates');
+});
+
+router.post('/updates/source', (req, res) => {
+  if (req.body.action === 'reset') {
+    settings.setMany({ update_repo: '', update_branch: '' });
+    return res.redirect(`/updates?msg=${q('Updates will come from the original repository again')}`);
+  }
+  const branch = String(req.body.branch || '').trim() || 'main';
+  if (!/^[\w][\w./-]*$/.test(branch) || branch.includes('..')) return res.redirect(`/updates?err=${q('That branch name is not valid')}`);
+  let repo = '';
+  try {
+    repo = updater.normalizeRepo(req.body.repo);
+  } catch (err) {
+    return res.redirect(`/updates?err=${q(err.message)}`);
+  }
+  settings.setMany({ update_repo: repo, update_branch: branch === 'main' ? '' : branch });
+  res.redirect(`/updates?msg=${q('Update source saved. Click "Check for updates" to try it.')}#source`);
 });
 
 router.post('/updates/run', (req, res) => {

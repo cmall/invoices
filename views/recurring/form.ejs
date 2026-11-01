@@ -35,6 +35,7 @@
         <% for (const c of currencies) { %><option <%= c === profile.currency ? 'selected' : '' %>><%= c %></option><% } %>
       </select>
     </label>
+    <% if (multiBusiness) { %><%- include('../partials/business-select', { selected: profile.business_id === undefined ? undefined : (profile.business_id || null), clientDefault: !profile.id, cls: 'span-4' }) %><% } %>
     <label class="span-2">Invoice subject <input name="subject" value="<%= profile.subject %>" placeholder="e.g. Hosting – {{month}} {{year}}"></label>
     <label>PO number <input name="po_number" value="<%= profile.po_number %>"></label>
     <label>Discount % <input name="discount_percent" inputmode="decimal" value="<%= profile.discount_percent || '' %>" data-discount></label>

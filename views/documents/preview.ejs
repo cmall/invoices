@@ -1,12 +1,15 @@
 <%# HTML rendering of an invoice/estimate. Used by the admin view and the public client page. Locals: doc %>
-<% const m = (c) => u.formatMoney(c, doc.currency); const isInv = doc.kind === 'invoice'; %>
-<article class="paper font-<%= s.invoice_font === 'classic' ? 'classic' : 'modern' %> logo-<%= ['small','large'].includes(s.logo_size) ? s.logo_size : 'medium' %>">
+<% const m = (c) => u.formatMoney(c, doc.currency); const isInv = doc.kind === 'invoice';
+   // Business this document is from (falls back to the page's settings).
+   const b = (typeof biz !== 'undefined' && biz) ? biz : s;
+   const logoUrl = b.logo_url !== undefined ? b.logo_url : (b.logo_file ? '/logo' : ''); %>
+<article class="paper font-<%= b.invoice_font === 'classic' ? 'classic' : 'modern' %> logo-<%= ['small','large'].includes(b.logo_size) ? b.logo_size : 'medium' %>" style="--accent:<%= b.accent_color %>;--heading:<%= b.heading_color %>">
   <header class="paper-head">
     <div class="paper-brand">
-      <% if (s.logo_file) { %><img src="/logo" alt="<%= s.business_name %>" class="paper-logo"><% } else if (s.business_name) { %><div class="paper-name"><%= s.business_name %></div><% } %>
+      <% if (logoUrl) { %><img src="<%= logoUrl %>" alt="<%= b.business_name %>" class="paper-logo"><% } else if (b.business_name) { %><div class="paper-name"><%= b.business_name %></div><% } %>
     </div>
     <div class="paper-from">
-      <% for (const l of [s.business_name, ...String(s.business_address || '').split('\n'), s.business_email, s.business_phone, s.business_website].filter(x => x && x.trim())) { %><div><%= l %></div><% } %>
+      <% for (const l of [b.business_name, ...String(b.business_address || '').split('\n'), b.business_email, b.business_phone, b.business_website].filter(x => x && x.trim())) { %><div><%= l %></div><% } %>
     </div>
   </header>
 
@@ -67,8 +70,8 @@
     <% if (isInv) { %><dt class="due">Balance due (<%= doc.currency %>)</dt><dd class="due"><%= m(doc.balance_cents) %></dd><% } %>
   </dl>
 
-  <% if (isInv && doc.balance_cents > 0 && s.payment_instructions) { %>
-    <div class="paper-notes"><div class="label">Payment instructions</div><div class="pre"><%= s.payment_instructions %></div></div>
+  <% if (isInv && doc.balance_cents > 0 && b.payment_instructions) { %>
+    <div class="paper-notes"><div class="label">Payment instructions</div><div class="pre"><%= b.payment_instructions %></div></div>
   <% } %>
   <% if (doc.notes) { %><div class="paper-notes"><div class="label">Notes</div><div class="pre"><%= doc.notes %></div></div><% } %>
   <% if (doc.terms) { %><div class="paper-notes"><div class="label">Terms</div><div class="pre"><%= doc.terms %></div></div><% } %>

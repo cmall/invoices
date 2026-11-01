@@ -188,6 +188,19 @@ const migrations = [
   -- When set on a draft invoice, it is emailed automatically on this date.
   ALTER TABLE documents ADD COLUMN auto_send_on TEXT;
   `,
+  `
+  -- Additional businesses (companies or individuals) you invoice from. The main business lives in
+  -- settings; documents/clients/recurring with business_id NULL belong to it.
+  CREATE TABLE businesses (
+    id INTEGER PRIMARY KEY,
+    profile TEXT NOT NULL DEFAULT '{}',
+    archived INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  ALTER TABLE documents ADD COLUMN business_id INTEGER REFERENCES businesses(id) ON DELETE SET NULL;
+  ALTER TABLE clients ADD COLUMN business_id INTEGER REFERENCES businesses(id) ON DELETE SET NULL;
+  ALTER TABLE recurring ADD COLUMN business_id INTEGER REFERENCES businesses(id) ON DELETE SET NULL;
+  `,
 ];
 
 function migrate() {
