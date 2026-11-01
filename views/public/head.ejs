@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <title><%= title %><%= s.business_name ? ` · ${s.business_name}` : '' %></title>
 <link rel="preload" href="/static/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/app.css?v=<%= v %>">
 <%- include('../partials/theme') %>
 </head>
 <body class="public">

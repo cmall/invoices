@@ -10,7 +10,21 @@ const stripe = require('./stripe');
 const reminders = require('./reminders');
 const updater = require('./updater');
 
+// Fingerprint of the CSS/JS so browsers fetch fresh copies after every update.
+function assetVersion() {
+  const hash = require('crypto').createHash('sha1');
+  for (const f of ['app.css', 'app.js']) {
+    try {
+      hash.update(require('fs').readFileSync(path.join(config.root, 'public', f)));
+    } catch {
+      /* missing file: ignore */
+    }
+  }
+  return hash.digest('hex').slice(0, 10);
+}
+
 function createApp() {
+  const assetV = assetVersion();
   const app = express();
   app.set('view engine', 'ejs');
   app.set('views', path.join(config.root, 'views'));
@@ -46,6 +60,7 @@ function createApp() {
   app.use((req, res, next) => {
     res.locals.s = settings.getAll();
     res.locals.u = util;
+    res.locals.v = assetV;
     res.locals.path = req.path;
     const uc = updater.cachedCheck();
     res.locals.updateAvailable = Boolean(uc && uc.behind > 0);
