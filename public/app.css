@@ -567,6 +567,16 @@ h2 .icon { color: var(--accent-text); margin-right: 4px; vertical-align: -3px; }
   .schedule-actions { grid-column: 1 / -1; align-items: stretch; }
 }
 
+/* ---------- Businesses ---------- */
+.biz-logo { height: 40px; display: flex; align-items: center; }
+.biz-logo img { max-height: 40px; max-width: 150px; object-fit: contain; }
+:root[data-theme='dark'] .biz-logo img { background: rgba(255, 255, 255, 0.92); border-radius: 8px; padding: 3px 6px; }
+.form-grid.nested { padding: 14px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); }
+.form-grid.nested[hidden] { display: none; }
+.from-pill { display: inline-flex; align-items: center; gap: 6px; padding: 1px 9px; border-radius: 999px; font-size: 0.8rem; font-weight: 600;
+  background: color-mix(in oklab, var(--accent) 14%, transparent); color: color-mix(in oklab, var(--accent) 75%, var(--text)); }
+.from-pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1100px) {
   .hero-grid { grid-template-columns: 1fr; }

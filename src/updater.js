@@ -10,13 +10,47 @@ const config = require('./config');
 // UPDATE_GIT_DIR exists for tests; normally the app updates its own folder.
 const root = process.env.UPDATE_GIT_DIR || config.root;
 const LOG_LIMIT = 20000;
-// The GitHub branch updates come from. Override with UPDATE_BRANCH in .env.
-const TARGET = process.env.UPDATE_BRANCH || 'main';
-const UPSTREAM = `origin/${TARGET}`;
+// Where updates come from. By default the repository the app was cloned from ("origin") and
+// its main branch. Either can be changed on the Updates page (stored in settings) or in .env
+// (UPDATE_REPO / UPDATE_BRANCH, which take precedence), e.g. to follow your own fork.
+const UPDATES_REMOTE = 'updates';
 
-async function fetchTarget() {
+function normalizeRepo(input) {
+  const s = String(input || '').trim();
+  if (!s) return '';
+  if (/^[\w.-]+\/[\w.-]+$/.test(s)) return `https://github.com/${s.replace(/\.git$/, '')}.git`;
+  if (/^https:\/\/[\w.-]+(:\d+)?\/[\w./~-]+$/.test(s)) return s;
+  if (/^(ssh:\/\/)?[\w.-]+@[\w.-]+[:/][\w./~-]+$/.test(s)) return s;
+  // A repository on this server (e.g. a mirror).
+  if (/^(file:\/\/)?\/[\w./~-]+$/.test(s)) return s;
+  throw new Error('Enter a repository like owner/repo, https://github.com/owner/repo.git or git@github.com:owner/repo.git');
+}
+
+function source() {
+  const settings = require('./settings');
+  const repo = process.env.UPDATE_REPO || settings.get('update_repo') || '';
+  const branch = process.env.UPDATE_BRANCH || settings.get('update_branch') || 'main';
+  const remote = repo ? UPDATES_REMOTE : 'origin';
+  return { repo, branch, remote, upstream: `${remote}/${branch}`, fromEnv: { repo: Boolean(process.env.UPDATE_REPO), branch: Boolean(process.env.UPDATE_BRANCH) } };
+}
+
+// Points the "updates" remote at the chosen repository (when one is set) and fetches the branch.
+async function fetchTarget(log) {
+  const src = source();
+  if (src.repo) {
+    let url = normalizeRepo(src.repo);
+    const existing = await run('git', ['remote', 'get-url', UPDATES_REMOTE]);
+    if (!existing.ok) await git('remote', 'add', UPDATES_REMOTE, url);
+    else if (existing.stdout.trim() !== url) await git('remote', 'set-url', UPDATES_REMOTE, url);
+  }
   // Explicit refspec so this works even in single-branch clones.
-  await git('fetch', '--quiet', 'origin', `+refs/heads/${TARGET}:refs/remotes/origin/${TARGET}`);
+  const args = ['fetch', '--quiet', src.remote, `+refs/heads/${src.branch}:refs/remotes/${src.remote}/${src.branch}`];
+  if (log) {
+    await step('git fetch', 'git', args);
+  } else {
+    await git(...args);
+  }
+  return src;
 }
 
 function run(cmd, args, opts = {}) {
@@ -46,6 +80,14 @@ function disabledReason() {
   return '';
 }
 
+function safeNormalize(r) {
+  try {
+    return normalizeRepo(r);
+  } catch {
+    return r;
+  }
+}
+
 let lastCheck = null; // { at, behind, commits, error }
 
 async function currentVersion() {
@@ -58,7 +100,12 @@ async function currentVersion() {
       git('log', '-1', '--format=%s%x09%cI'),
     ]);
     const [subject, date] = info.split('\t');
-    return { enabled: true, sha, branch, target: TARGET, subject, date, canRestart: canRestartItself() };
+    const src = source();
+    const originUrl = (await run('git', ['remote', 'get-url', 'origin'])).stdout.trim();
+    return {
+      enabled: true, sha, branch, target: src.branch, subject, date, canRestart: canRestartItself(),
+      source: { ...src, url: src.repo ? safeNormalize(src.repo) : originUrl, originUrl },
+    };
   } catch (err) {
     return { enabled: false, reason: `git is not available: ${err.message}` };
   }
@@ -68,7 +115,8 @@ async function check() {
   const v = await currentVersion();
   if (!v.enabled) return { ...v, check: null };
   try {
-    await fetchTarget();
+    const src = await fetchTarget();
+    const UPSTREAM = src.upstream;
     const behind = Number(await git('rev-list', '--count', `HEAD..${UPSTREAM}`));
     const ahead = Number(await git('rev-list', '--count', `${UPSTREAM}..HEAD`));
     const log = behind ? await git('log', '--format=%h%x09%s%x09%cI', '-n', '30', `HEAD..${UPSTREAM}`) : '';
@@ -79,9 +127,10 @@ async function check() {
         })
       : [];
     const dirty = (await git('status', '--porcelain', '--untracked-files=no')).split('\n').filter(Boolean);
+    const TARGET = src.branch;
     const switchBranch = v.branch !== TARGET;
     let error = '';
-    if (ahead > 0) error = `This copy has ${ahead} commit(s) that are not on ${TARGET}, so it can't be updated automatically.`;
+    if (ahead > 0) error = `This copy has ${ahead} commit(s) that are not on ${TARGET} in the update source, so it can't be updated automatically. (If you just switched to a fork, sync the fork with the original repository on GitHub first.)`;
     lastCheck = { at: new Date().toISOString(), behind, ahead, commits, dirty, switchBranch, error };
   } catch (err) {
     lastCheck = { at: new Date().toISOString(), behind: 0, ahead: 0, commits: [], dirty: [], switchBranch: false, error: err.message };
@@ -123,9 +172,12 @@ function startUpdate() {
         throw new Error('Files in the app folder were changed by hand. Undo them (git checkout -- .) and try again.');
       }
       const before = await git('rev-parse', 'HEAD');
-      await step('git fetch', 'git', ['fetch', 'origin', `+refs/heads/${TARGET}:refs/remotes/origin/${TARGET}`]);
+      const src = await fetchTarget(true);
+      const TARGET = src.branch;
+      const UPSTREAM = src.upstream;
+      append(`\nUpdating from ${src.repo ? safeNormalize(src.repo) : 'origin'} (${TARGET}).\n`);
       const isAncestor = await run('git', ['merge-base', '--is-ancestor', 'HEAD', UPSTREAM]);
-      if (!isAncestor.ok) throw new Error(`The installed version is not part of ${TARGET}'s history, so it can't be fast-forwarded.`);
+      if (!isAncestor.ok) throw new Error(`The installed version is not part of ${TARGET}'s history in the update source, so it can't be fast-forwarded.`);
       if (branch === TARGET) {
         await step('git merge', 'git', ['merge', '--ff-only', UPSTREAM]);
       } else {
@@ -176,4 +228,4 @@ function startBackgroundChecks() {
   setInterval(tick, 12 * 60 * 60 * 1000).unref();
 }
 
-module.exports = { currentVersion, check, cachedCheck, startUpdate, jobStatus, startBackgroundChecks, canRestartItself };
+module.exports = { normalizeRepo, source, currentVersion, check, cachedCheck, startUpdate, jobStatus, startBackgroundChecks, canRestartItself };

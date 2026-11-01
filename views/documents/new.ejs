@@ -11,6 +11,7 @@
       <% for (const c of clients) { %><option value="<%= c.id %>" <%= c.id === clientId ? 'selected' : '' %>><%= c.name %> (<%= c.currency %>)</option><% } %>
     </select>
   </label>
+  <%- include('../partials/business-select', { selected: undefined, clientDefault: true, cls: 'span-2' }) %>
   <label class="span-2">Subject <span class="hint">optional, e.g. "Website redesign – phase 2"</span><input name="subject"></label>
   <div class="span-2 actions"><button class="btn primary">Create <%= label.toLowerCase() %></button></div>
 </form>

@@ -21,7 +21,7 @@
     <dl class="dl">
       <dt>Version</dt><dd><code><%= version.sha %></code></dd>
       <dt>Branch</dt><dd><code><%= version.branch %></code><% if (version.branch !== version.target) { %> <span class="muted small">(updates come from <code><%= version.target %></code>)</span><% } %></dd>
-      <dt>Updates from</dt><dd>GitHub · <code><%= version.target %></code></dd>
+      <dt>Updates from</dt><dd><code><%= version.source.url.replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '') || 'origin' %></code> · <code><%= version.target %></code></dd>
       <dt>Latest change</dt><dd><%= version.subject %><br><span class="muted small"><%= new Date(version.date).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' }) %></span></dd>
       <dt>Restart</dt><dd><%= version.canRestart ? 'Automatic (managed by PM2)' : 'Manual: restart the app after updating' %></dd>
     </dl>
@@ -56,6 +56,29 @@
       <p class="hint mt">Your data folder and .env are never touched. Download a <a href="/backup">backup</a> first if you like.</p>
     <% } %>
   </div>
+</div>
+
+<div class="card" id="source">
+  <div class="section-head">
+    <h2><%- include('partials/icon', { name: 'link' }) %> Update source</h2>
+    <% if (version.source.repo) { %><span class="badge badge-invoiced">custom</span><% } else { %><span class="badge badge-paid">original</span><% } %>
+  </div>
+  <p class="muted small">Updates come from <strong><%= version.source.repo ? 'your chosen repository' : 'the repository this copy was installed from' %></strong>. To run your own modified version, fork the project on GitHub and enter your fork below. Keep the fork current with GitHub's <em>Sync fork</em> button to also get new releases of the original.</p>
+  <% if (version.source.fromEnv.repo || version.source.fromEnv.branch) { %>
+    <div class="flash err"><%- include('partials/icon', { name: 'alert' }) %><span>Set in <code>.env</code> (<%= [version.source.fromEnv.repo && 'UPDATE_REPO', version.source.fromEnv.branch && 'UPDATE_BRANCH'].filter(Boolean).join(', ') %>), which overrides this form. Remove it there to choose here.</span></div>
+  <% } %>
+  <form method="post" action="/updates/source" class="form-grid">
+    <%- include('partials/csrf') %>
+    <label>Repository <span class="hint">blank = original (<%= (version.source.originUrl || 'origin').replace(/^https:\/\/github\.com\//, '').replace(/\.git$/, '') %>)</span>
+      <input name="repo" value="<%= s.update_repo %>" placeholder="your-github-user/invoices" autocomplete="off" spellcheck="false">
+    </label>
+    <label>Branch <input name="branch" value="<%= s.update_branch || 'main' %>" spellcheck="false"></label>
+    <div class="span-2 actions">
+      <button class="btn primary">Save source</button>
+      <% if (s.update_repo || s.update_branch) { %><button class="btn" name="action" value="reset">Use the original again</button><% } %>
+    </div>
+    <p class="hint span-2">Public repositories work as they are. For a private fork, give this server read access first (for example a GitHub deploy key) and use its <code>git@github.com:…</code> address.</p>
+  </form>
 </div>
 
 <% if (job) { %>

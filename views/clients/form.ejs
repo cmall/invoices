@@ -16,6 +16,7 @@
   <label>Payment terms (days) <span class="hint">blank = default (<%= s.payment_terms_days %>)</span>
     <input type="number" min="0" name="payment_terms_days" value="<%= client.payment_terms_days ?? '' %>">
   </label>
+  <%- include('../partials/business-select', { selected: client.business_id || null, cls: 'span-2' }) %>
   <fieldset class="span-2">
     <legend>Default taxes for new invoices</legend>
     <% if (!taxRates.length) { %><p class="muted">No tax rates yet. <a href="/settings#taxes">Add them in Settings</a>.</p><% } %>

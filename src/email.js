@@ -2,6 +2,7 @@
 const db = require('./db');
 const config = require('./config');
 const settings = require('./settings');
+const businesses = require('./businesses');
 const { renderPdf, pdfFilename, publicUrl } = require('./pdf');
 const { formatMoney, formatDate, fillTemplate, escapeHtml, splitEmails } = require('./util');
 
@@ -10,7 +11,7 @@ function isConfigured() {
 }
 
 function templateVars(doc, extra = {}) {
-  const s = settings.getAll();
+  const s = businesses.effective(doc.business_id);
   const c = doc.client || {};
   return {
     business_name: s.business_name,
@@ -80,15 +81,15 @@ async function postmarkSend(message) {
   return body;
 }
 
-function fromHeader() {
-  const s = settings.getAll();
+function fromHeader(s = settings.getAll()) {
   const name = (s.from_name || s.business_name || '').replace(/["<>]/g, '');
   return name ? `"${name}" <${s.from_email}>` : s.from_email;
 }
 
 // Sends an email about a document (invoice, estimate, reminder, receipt), logging the result.
 async function sendDocumentEmail(doc, { purpose, to, cc, subject, body, attachPdf = true }) {
-  const s = settings.getAll();
+  // Name, From address, logo and colours of the business this document is from.
+  const s = businesses.effective(doc.business_id);
   const toList = splitEmails(to);
   const ccList = splitEmails(cc);
   if (!toList.length) throw new Error('No valid recipient email address');
@@ -102,11 +103,11 @@ async function sendDocumentEmail(doc, { purpose, to, cc, subject, body, attachPd
   }
 
   const message = {
-    From: fromHeader(),
+    From: fromHeader(s),
     To: toList.join(', '),
     Subject: subject,
     TextBody: body,
-    HtmlBody: textToHtml(body, buttonLabel, publicUrl(doc), accent, s.logo_file ? `${config.appUrl}/logo?v=${encodeURIComponent(s.logo_file)}` : '', s.business_name),
+    HtmlBody: textToHtml(body, buttonLabel, publicUrl(doc), accent, s.logo_url ? `${config.appUrl}${s.logo_url}` : '', s.business_name),
     ReplyTo: s.business_email || s.from_email,
     Tag: purpose,
     TrackOpens: true,

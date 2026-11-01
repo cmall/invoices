@@ -147,6 +147,7 @@ function saveProfile(id, data) {
     send_mode: data.send_mode,
     stage_days: data.stage_days,
     notify_owner: data.notify_owner ? 1 : 0,
+    business_id: data.business_id || null,
   };
   if (!id) {
     const info = db
@@ -208,7 +209,7 @@ function generateNext(id, { now = today() } = {}) {
   const terms = client.payment_terms_days ?? Number(settings.get('payment_terms_days'));
 
   const invoiceId = db.transaction(() => {
-    const newId = documents.createDocument('invoice', p.client_id, { subject: fillTemplate(p.subject, vars) });
+    const newId = documents.createDocument('invoice', p.client_id, { subject: fillTemplate(p.subject, vars), business_id: p.business_id || null });
     const autoSend = p.send_mode === 'auto' && daysBetween(issueDate, now) <= LATE_SEND_GRACE_DAYS ? issueDate : null;
     db.prepare(
       `UPDATE documents SET issue_date = ?, due_date = ?, po_number = ?, currency = ?, discount_percent = ?, notes = ?, terms = ?,

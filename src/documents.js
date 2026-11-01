@@ -19,29 +19,31 @@ function logActivity(documentId, message) {
   db.prepare('INSERT INTO activity (document_id, message) VALUES (?, ?)').run(documentId, message);
 }
 
-function formatNumber(kind, n) {
-  const s = settings.getAll();
-  const prefix = kind === 'invoice' ? s.invoice_prefix : s.estimate_prefix;
-  const pad = Math.max(0, Math.min(10, Number(s.number_padding) || 0));
-  return `${prefix}${String(n).padStart(pad, '0')}`;
+function formatNumber(prefix, padding, n) {
+  return `${prefix}${String(n).padStart(padding, '0')}`;
 }
 
-// Takes the next free number for this kind and advances the counter.
-function takeNextNumber(kind) {
-  const key = kind === 'invoice' ? 'invoice_next_number' : 'estimate_next_number';
-  let n = Number(settings.get(key)) || 1;
+// Takes the next free number for this kind (and business) and advances the counter.
+function takeNextNumber(kind, businessId = null) {
+  const seq = businesses().numbering(businessId, kind);
+  let n = seq.next;
   const exists = db.prepare('SELECT 1 FROM documents WHERE kind = ? AND number = ?');
-  while (exists.get(kind, formatNumber(kind, n))) n++;
-  settings.set(key, n + 1);
-  return formatNumber(kind, n);
+  while (exists.get(kind, formatNumber(seq.prefix, seq.padding, n))) n++;
+  seq.setNext(n + 1);
+  return formatNumber(seq.prefix, seq.padding, n);
 }
 
-function peekNextNumber(kind) {
-  const key = kind === 'invoice' ? 'invoice_next_number' : 'estimate_next_number';
-  let n = Number(settings.get(key)) || 1;
+function peekNextNumber(kind, businessId = null) {
+  const seq = businesses().numbering(businessId, kind);
+  let n = seq.next;
   const exists = db.prepare('SELECT 1 FROM documents WHERE kind = ? AND number = ?');
-  while (exists.get(kind, formatNumber(kind, n))) n++;
-  return formatNumber(kind, n);
+  while (exists.get(kind, formatNumber(seq.prefix, seq.padding, n))) n++;
+  return formatNumber(seq.prefix, seq.padding, n);
+}
+
+// Required lazily: businesses.js depends on settings/db only, but keeps load order simple.
+function businesses() {
+  return require('./businesses');
 }
 
 function clientDefaultTaxes(client) {
@@ -64,7 +66,9 @@ function clientDefaultTaxes(client) {
 function createDocument(kind, clientId, extra = {}) {
   const client = db.prepare('SELECT * FROM clients WHERE id = ?').get(clientId);
   if (!client) throw new Error('Client not found');
-  const s = settings.getAll();
+  // Bill from the chosen business, else the client's default, else the main business.
+  const businessId = extra.business_id !== undefined ? extra.business_id || null : client.business_id || null;
+  const s = businesses().effective(businessId);
   const issueDate = today();
   const terms = client.payment_terms_days ?? Number(s.payment_terms_days);
   const dueDate =
@@ -74,12 +78,12 @@ function createDocument(kind, clientId, extra = {}) {
     const info = db
       .prepare(
         `INSERT INTO documents (kind, number, client_id, status, subject, issue_date, due_date, currency,
-          notes, terms, public_token)
-         VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?)`,
+          notes, terms, public_token, business_id)
+         VALUES (?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         kind,
-        takeNextNumber(kind),
+        takeNextNumber(kind, businessId),
         client.id,
         extra.subject || '',
         issueDate,
@@ -88,6 +92,7 @@ function createDocument(kind, clientId, extra = {}) {
         kind === 'invoice' ? s.default_invoice_notes : s.default_estimate_notes,
         kind === 'invoice' ? s.default_invoice_terms : '',
         randomToken(),
+        businessId,
       );
     const id = Number(info.lastInsertRowid);
     replaceTaxes(id, clientDefaultTaxes(client));
@@ -246,6 +251,12 @@ function listDocuments(kind, filters = {}) {
     where.push('d.client_id = ?');
     params.push(filters.client_id);
   }
+  if (filters.business === 'main') {
+    where.push('d.business_id IS NULL');
+  } else if (Number(filters.business)) {
+    where.push('d.business_id = ?');
+    params.push(Number(filters.business));
+  }
   if (filters.year) {
     where.push("substr(d.issue_date, 1, 4) = ?");
     params.push(String(filters.year));
@@ -266,7 +277,8 @@ function listDocuments(kind, filters = {}) {
   }
   return db
     .prepare(
-      `SELECT d.*, c.name AS client_name FROM documents d JOIN clients c ON c.id = d.client_id
+      `SELECT d.*, c.name AS client_name, json_extract(b.profile, '$.business_name') AS business_name
+       FROM documents d JOIN clients c ON c.id = d.client_id LEFT JOIN businesses b ON b.id = d.business_id
        WHERE ${where.join(' AND ')} ORDER BY d.issue_date DESC, d.id DESC`,
     )
     .all(...params)
@@ -291,6 +303,9 @@ function updateDocument(id, fields, lines, taxes) {
       fields.terms,
       id,
     );
+    if (fields.business_id !== undefined) {
+      db.prepare('UPDATE documents SET business_id = ? WHERE id = ?').run(fields.business_id || null, id);
+    }
     replaceLines(id, lines);
     replaceTaxes(id, taxes);
     recalc(id);
@@ -351,7 +366,7 @@ function deletePayment(documentId, paymentId) {
 function duplicate(id) {
   const src = getDocument(id);
   if (!src) throw new Error('Not found');
-  const newId = createDocument(src.kind, src.client_id, { subject: src.subject });
+  const newId = createDocument(src.kind, src.client_id, { subject: src.subject, business_id: src.business_id });
   db.transaction(() => {
     db.prepare(
       'UPDATE documents SET po_number = ?, currency = ?, discount_percent = ?, notes = ?, terms = ? WHERE id = ?',
@@ -368,7 +383,7 @@ function convertEstimateToInvoice(estimateId) {
   const est = getDocument(estimateId);
   if (!est || est.kind !== 'estimate') throw new Error('Estimate not found');
   if (est.converted_invoice_id) return est.converted_invoice_id;
-  const invoiceId = createDocument('invoice', est.client_id, { subject: est.subject });
+  const invoiceId = createDocument('invoice', est.client_id, { subject: est.subject, business_id: est.business_id });
   db.transaction(() => {
     db.prepare(
       'UPDATE documents SET po_number = ?, currency = ?, discount_percent = ?, source_estimate_id = ? WHERE id = ?',

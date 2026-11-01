@@ -1,0 +1,11 @@
+<%# "Bill from" picker. Locals: selected (null = main, id, or undefined), clientDefault (bool), cls %>
+<% if (multiBusiness) { const sel = typeof selected === 'undefined' ? undefined : selected; %>
+<label class="<%= typeof cls !== 'undefined' ? cls : '' %>">Bill from
+  <select name="business_id">
+    <% if (typeof clientDefault !== 'undefined' && clientDefault) { %><option value="">Client's default</option><% } %>
+    <% for (const b of businessChoices) { const val = b.primary ? 'main' : String(b.id); const isSel = b.primary ? sel === null : Number(sel) === b.id; %>
+      <option value="<%= val %>" <%= isSel ? 'selected' : '' %>><%= b.name %><%= b.primary ? ' (main)' : '' %></option>
+    <% } %>
+  </select>
+</label>
+<% } %>

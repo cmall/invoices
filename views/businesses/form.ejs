@@ -1,0 +1,99 @@
+<%- include('../partials/head') %>
+<% const v = (k, d = '') => (biz[k] !== undefined ? biz[k] : d); const isNew = !biz.id; %>
+<div class="page-head">
+  <div>
+    <p class="eyebrow"><a href="/businesses">Businesses</a></p>
+    <h1><%= isNew ? 'Add a business' : biz.name %> <% if (biz.archived) { %><span class="badge badge-void">archived</span><% } %></h1>
+  </div>
+  <% if (!isNew) { %>
+  <div class="actions">
+    <a class="btn" href="/invoices?business=<%= biz.id %>">Invoices</a>
+    <a class="btn" href="/reports?business=<%= biz.id %>">Reports</a>
+  </div>
+  <% } %>
+</div>
+
+<form method="post" action="<%= isNew ? '/businesses' : `/businesses/${biz.id}` %>">
+  <%- include('../partials/csrf') %>
+  <div class="card form-grid">
+    <h2 class="span-2">Details</h2>
+    <p class="hint span-2">Shown on this business's invoices, estimates, payment pages and emails. Leave a field blank to leave it off. Nothing is borrowed from your main business.</p>
+    <label>Business or person name <input name="business_name" value="<%= v('business_name') %>" required autofocus></label>
+    <label>Email <input type="email" name="business_email" value="<%= v('business_email') %>"></label>
+    <label>Phone <input name="business_phone" value="<%= v('business_phone') %>"></label>
+    <label>Website <input name="business_website" value="<%= v('business_website') %>"></label>
+    <label class="span-2">Address <textarea name="business_address" rows="3"><%= v('business_address') %></textarea></label>
+    <label class="span-2">Payment instructions <span class="hint">e.g. bank or e-transfer details for this business</span><textarea name="payment_instructions" rows="3"><%= v('payment_instructions') %></textarea></label>
+  </div>
+
+  <div class="card form-grid">
+    <h2 class="span-2"><%- include('../partials/icon', { name: 'send' }) %> Email sender</h2>
+    <p class="hint span-2">Leave blank to send from your main address (<%= main.from_email || 'not set' %>). A different address must be verified in Postmark (as a Sender Signature or domain).</p>
+    <label>From email <input type="email" name="from_email" value="<%= v('from_email') %>" placeholder="<%= main.from_email %>"></label>
+    <label>From name <input name="from_name" value="<%= v('from_name') %>" placeholder="<%= v('business_name') || 'Business name' %>"></label>
+  </div>
+
+  <div class="card form-grid" id="branding">
+    <h2 class="span-2"><%- include('../partials/icon', { name: 'sparkle' }) %> Branding</h2>
+    <label>Accent colour
+      <span class="color-input"><input type="color" name="accent_color" value="<%= /^#[0-9a-f]{6}$/i.test(v('accent_color')) ? v('accent_color') : main.accent_color %>"></span>
+    </label>
+    <label>Heading colour
+      <span class="color-input"><input type="color" name="heading_color" value="<%= /^#[0-9a-f]{6}$/i.test(v('heading_color')) ? v('heading_color') : main.heading_color %>"></span>
+    </label>
+    <label>Invoice typeface
+      <select name="invoice_font">
+        <option value="" <%= !v('invoice_font') ? 'selected' : '' %>>Same as main (<%= main.invoice_font %>)</option>
+        <option value="modern" <%= v('invoice_font') === 'modern' ? 'selected' : '' %>>Modern</option>
+        <option value="classic" <%= v('invoice_font') === 'classic' ? 'selected' : '' %>>Classic</option>
+      </select>
+    </label>
+    <label>Logo size
+      <select name="logo_size">
+        <option value="" <%= !v('logo_size') ? 'selected' : '' %>>Same as main</option>
+        <% for (const sz of ['small', 'medium', 'large']) { %><option value="<%= sz %>" <%= v('logo_size') === sz ? 'selected' : '' %>><%= sz %></option><% } %>
+      </select>
+    </label>
+  </div>
+
+  <div class="card form-grid">
+    <h2 class="span-2"><%- include('../partials/icon', { name: 'invoice' }) %> Numbering &amp; defaults</h2>
+    <label class="check span-2"><input type="checkbox" name="own_numbering" value="1" <%= v('own_numbering') === '1' ? 'checked' : '' %> data-toggle-target="#own-numbering"> Give this business its own invoice and estimate numbers</label>
+    <div class="span-2 form-grid nested" id="own-numbering">
+      <label>Invoice prefix <input name="invoice_prefix" value="<%= v('invoice_prefix', '') %>" placeholder="e.g. SC-"></label>
+      <label>Next invoice number <% if (typeof nextInvoice !== 'undefined' && v('own_numbering') === '1') { %><span class="hint">next: <%= nextInvoice %></span><% } %><input type="number" min="1" name="invoice_next_number" value="<%= v('invoice_next_number', '1') %>"></label>
+      <label>Estimate prefix <input name="estimate_prefix" value="<%= v('estimate_prefix', '') %>" placeholder="e.g. SC-EST-"></label>
+      <label>Next estimate number <input type="number" min="1" name="estimate_next_number" value="<%= v('estimate_next_number', '1') %>"></label>
+      <p class="hint span-2">Numbers must be unique across all businesses, so use a different prefix from your main business (<code><%= main.invoice_prefix || 'none' %></code>).</p>
+    </div>
+    <label class="span-2">Default invoice notes <span class="hint">blank = same as main</span><textarea name="default_invoice_notes" rows="2" placeholder="<%= main.default_invoice_notes %>"><%= v('default_invoice_notes') %></textarea></label>
+    <label class="span-2">Default invoice terms <span class="hint">blank = same as main</span><textarea name="default_invoice_terms" rows="2" placeholder="<%= main.default_invoice_terms %>"><%= v('default_invoice_terms') %></textarea></label>
+    <label class="span-2">Default estimate notes <span class="hint">blank = same as main</span><textarea name="default_estimate_notes" rows="2" placeholder="<%= main.default_estimate_notes %>"><%= v('default_estimate_notes') %></textarea></label>
+  </div>
+
+  <div class="sticky-actions">
+    <button class="btn primary"><%- include('../partials/icon', { name: 'check' }) %> <%= isNew ? 'Add business' : 'Save business' %></button>
+    <a class="btn" href="/businesses">Cancel</a>
+  </div>
+</form>
+
+<% if (!isNew) { %>
+<div class="card mt" id="logo">
+  <h2>Logo</h2>
+  <div class="logo-box">
+    <div class="logo-frame"><% if (biz.logo_file) { %><img src="/logo?b=<%= biz.id %>&v=<%= biz.logo_file %>" alt="Logo"><% } else { %><span class="muted">No logo</span><% } %></div>
+    <div class="logo-actions">
+      <form method="post" action="/businesses/<%= biz.id %>/logo" enctype="multipart/form-data">
+        <%- include('../partials/csrf') %>
+        <label class="btn file-btn"><%= biz.logo_file ? 'Replace logo' : 'Upload logo' %><input type="file" name="logo" accept="image/png,image/jpeg" required data-autosubmit></label>
+      </form>
+      <% if (biz.logo_file) { %><form method="post" action="/businesses/<%= biz.id %>/logo/delete"><%- include('../partials/csrf') %><button class="link danger">Remove</button></form><% } %>
+    </div>
+  </div>
+  <p class="hint">PNG or JPEG, up to 2 MB. Without a logo, the business name is shown instead.</p>
+</div>
+<div class="danger-zone">
+  <form method="post" action="/businesses/<%= biz.id %>/archive" <%- biz.archived ? '' : 'data-confirm="Archive this business? Its invoices are kept; it just stops appearing as a choice."' %>><%- include('../partials/csrf') %><button class="btn small"><%= biz.archived ? 'Restore business' : 'Archive business' %></button></form>
+</div>
+<% } %>
+<%- include('../partials/foot') %>

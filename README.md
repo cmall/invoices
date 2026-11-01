@@ -5,6 +5,7 @@ A small, self-hosted invoicing app for freelancers and small studios who send a 
 - **Clients, projects and rates**: each client has its own currency, payment terms and default taxes. Projects carry an hourly rate that fills in automatically.
 - **Invoices and estimates**: line items with optional dates, quantities, discounts and notes. A draft stays open so you can keep adding lines as you work, then send it when you're ready. Estimates can be accepted online and turned into invoices in one click.
 - **Recurring invoices**: bill a client every N weeks, months, quarters or years, with an optional end date or invoice count. Each invoice is staged as a draft a few days before its date, so you can review or edit it. Per schedule, choose **Review first** (you press Send) or **Send automatically** on the invoice date. Placeholders like `{{month}}` and `{{year}}` fill in the subject and line descriptions. Any draft invoice can also be scheduled to send on a date.
+- **More than one business**: invoice as several companies, or as yourself. Each business has its own name, address, logo, colours, email sender, payment instructions and (optionally) invoice numbering. Clients can default to a business, and reports can be split by business.
 - **Taxes**: any number of named tax rates (GST, HST, PST, VAT, sales tax…) with registration numbers printed on the invoice. Each line can be marked taxable or not, and old invoices never change when you edit a rate.
 - **Modern interface** with light and dark modes, built around your brand colours, plus one-click updates from GitHub.
 - **Your branding**: upload a logo and pick from colour themes or your own accent and heading colours, with a modern or classic typeface. Branding applies to PDFs, the client payment page, emails and the app itself, with a live preview in Settings.
@@ -137,7 +138,17 @@ npm run update
 
 This runs the same steps (`git` fast-forward to `main`, `npm ci` when needed, `pm2 restart invoices`). With Docker, use `git pull && docker compose up -d --build` instead.
 
-Database changes are applied automatically on start. To follow a different branch, set `UPDATE_BRANCH` in `.env`.
+Database changes are applied automatically on start. `npm run update` uses the same update source as the app.
+
+### Running your own fork
+
+You can run a customised copy and still update with one click:
+
+1. Fork the repository on GitHub and make your changes there.
+2. In the app, open **Updates → Update source** and enter your fork (`your-user/invoices`) and the branch to follow.
+3. Click **Check for updates**. From then on, updates come from your fork. To pick up new releases of the original project, use GitHub's **Sync fork** button. You can switch back to the original any time with **Use the original again**.
+
+For a private fork, give the server read access first (for example a GitHub deploy key) and enter the `git@github.com:…` address. `UPDATE_REPO` and `UPDATE_BRANCH` in `.env` override the in-app setting.
 
 ## Configuration reference (`.env`)
 
@@ -152,7 +163,7 @@ Database changes are applied automatically on start. To follow a different branc
 | `POSTMARK_MESSAGE_STREAM` | Postmark message stream (default `outbound`). |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe API key and webhook signing secret. |
 | `DATA_DIR` | Where the database, logo and backups live (default `./data`). |
-| `UPDATE_BRANCH` | GitHub branch used by in-app updates and `npm run update` (default `main`). `UPDATES_ENABLED=0` hides in-app updates. |
+| `UPDATE_REPO` / `UPDATE_BRANCH` | Repository and branch for in-app updates (default: the repository you cloned, `main`). These override the Update source setting. `UPDATES_ENABLED=0` turns in-app updates off. |
 
 Everything else, including business details, logo, colours, numbering, default terms, reminder schedule and email templates, is edited in the app under **Settings**.
 

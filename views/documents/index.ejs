@@ -14,7 +14,13 @@
     <option value="">All clients</option>
     <% for (const c of clients) { %><option value="<%= c.id %>" <%= Number(filters.client_id) === c.id ? 'selected' : '' %>><%= c.name %></option><% } %>
   </select>
-  <select name="year">
+  <% if (multiBusiness) { %>
+  <select name="business">
+    <option value="">All businesses</option>
+    <% for (const b of businessChoices) { const val = b.primary ? 'main' : String(b.id); %><option value="<%= val %>" <%= filters.business === val ? 'selected' : '' %>><%= b.name %></option><% } %>
+  </select>
+  <% } %>
+    <select name="year">
     <option value="">All years</option>
     <% for (const y of years) { %><option <%= filters.year === y ? 'selected' : '' %>><%= y %></option><% } %>
   </select>

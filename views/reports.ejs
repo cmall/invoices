@@ -2,7 +2,13 @@
 <div class="page-head">
   <h1>Reports</h1>
   <form method="get" class="inline-form">
-    <select name="year" onchange="this.form.submit()">
+    <% if (multiBusiness) { %>
+    <select name="business" onchange="this.form.submit()" aria-label="Business">
+      <option value="">All businesses</option>
+      <% for (const b of businessChoices) { const val = b.primary ? 'main' : String(b.id); %><option value="<%= val %>" <%= business === val ? 'selected' : '' %>><%= b.name %></option><% } %>
+    </select>
+    <% } %>
+    <select name="year" onchange="this.form.submit()" aria-label="Year">
       <% for (const y of years) { %><option <%= y === year ? 'selected' : '' %>><%= y %></option><% } %>
     </select>
     <noscript><button class="btn">Go</button></noscript>
@@ -38,14 +44,28 @@
   </div>
 </div>
 
+<% if (multiBusiness && !business && r.byBusiness.length) { %>
+<div class="card">
+  <h2>By business</h2>
+  <table class="table compact">
+    <thead><tr><th>Business</th><th>Currency</th><th class="num">Invoices</th><th class="num">Invoiced</th><th class="num">Tax charged</th><th class="num">Collected</th></tr></thead>
+    <tbody>
+    <% for (const b of r.byBusiness) { %>
+      <tr><td><strong><%= b.name %></strong></td><td><%= b.currency %></td><td class="num"><%= b.count %></td><td class="num"><%= u.formatMoney(b.total, b.currency) %></td><td class="num"><%= u.formatMoney(b.tax, b.currency) %></td><td class="num"><%= u.formatMoney(b.collected, b.currency) %></td></tr>
+    <% } %>
+    </tbody>
+  </table>
+</div>
+<% } %>
+
 <div class="card">
   <h2>Tax summary</h2>
   <% if (!r.taxes.length && !r.cashTaxes.length) { %><p class="muted">No tax charged this year.</p><% } else { %>
   <table class="table">
     <thead><tr><th>Tax</th><th>Currency</th><th class="num">Taxable sales</th><th class="num">Tax charged (invoiced)</th><th class="num">Tax collected (paid)</th></tr></thead>
     <tbody>
-    <% const keys = new Map(); for (const t of r.taxes) keys.set(`${t.currency}|${t.name}|${t.rate}`, { ...t, collected: 0 });
-       for (const t of r.cashTaxes) { const k = `${t.currency}|${t.name}|${t.rate}`; if (!keys.has(k)) keys.set(k, { ...t, taxable: null, amount: 0, collected: 0 }); keys.get(k).collected = t.amount; } %>
+    <% const keys = new Map(); for (const t of r.taxes) keys.set(`${t.currency}|${t.name}|${t.rate}|${t.reg_number}`, { ...t, collected: 0 });
+       for (const t of r.cashTaxes) { const k = `${t.currency}|${t.name}|${t.rate}|${t.reg_number}`; if (!keys.has(k)) keys.set(k, { ...t, taxable: null, amount: 0, collected: 0 }); keys.get(k).collected = t.amount; } %>
     <% for (const t of keys.values()) { %>
       <tr>
         <td><%= t.name %> (<%= u.formatRate(t.rate) %>)<% if (t.reg_number) { %> <span class="muted">#<%= t.reg_number %></span><% } %></td>
@@ -92,8 +112,8 @@
 <div class="card">
   <h2>Export</h2>
   <p>
-    <a class="btn" href="/reports/<%= year %>/invoices.csv">Invoices <%= year %> (CSV)</a>
-    <a class="btn" href="/reports/<%= year %>/payments.csv">Payments <%= year %> (CSV)</a>
+    <a class="btn" href="/reports/<%= year %>/invoices.csv<%= business ? `?business=${business}` : '' %>">Invoices <%= year %> (CSV)</a>
+    <a class="btn" href="/reports/<%= year %>/payments.csv<%= business ? `?business=${business}` : '' %>">Payments <%= year %> (CSV)</a>
   </p>
 </div>
 <%- include('partials/foot') %>

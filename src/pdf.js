@@ -15,7 +15,7 @@ function publicUrl(doc) {
 }
 
 function renderPdf(doc) {
-  const s = settings.getAll();
+  const s = require('./businesses').effective(doc.business_id);
   const accent = validColor(s.accent_color, '#2f5d8a');
   const heading = validColor(s.heading_color, accent);
   const F = s.invoice_font === 'classic' ? { regular: 'Times-Roman', bold: 'Times-Bold' } : { regular: 'Helvetica', bold: 'Helvetica-Bold' };
@@ -273,7 +273,7 @@ function formatShortDate(iso) {
 }
 
 function pdfFilename(doc) {
-  const s = settings.getAll();
+  const s = require('./businesses').effective(doc.business_id);
   const base = `${s.business_name ? `${s.business_name} ` : ''}${doc.kind === 'invoice' ? 'Invoice' : 'Estimate'} ${doc.number}`;
   return `${base.replace(/[^\w.\- ]+/g, '').trim().replace(/\s+/g, '-')}.pdf`;
 }

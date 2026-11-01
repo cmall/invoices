@@ -1,0 +1,36 @@
+<%- include('../partials/head') %>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Settings</p>
+    <h1>Businesses</h1>
+    <p class="muted">Invoice from more than one company, or as yourself. Each has its own name, address, logo, colours and email sender, and optionally its own numbering.</p>
+  </div>
+  <div class="actions"><a class="btn primary" href="/businesses/new"><%- include('../partials/icon', { name: 'plus' }) %> Add a business</a></div>
+</div>
+
+<div class="profile-grid">
+  <a class="profile-card" href="/settings#business">
+    <div class="profile-top">
+      <span class="biz-logo"><% if (main.logo_url) { %><img src="<%= main.logo_url %>" alt=""><% } else { %><span class="brand-mark"><%= (main.business_name || 'M').charAt(0).toUpperCase() %></span><% } %></span>
+      <span class="badge badge-paid">main</span>
+    </div>
+    <div class="profile-name"><%= main.business_name || 'Main business' %></div>
+    <div class="muted small"><%= main.business_email || 'Set up in Settings' %></div>
+    <div class="profile-meta mt"><span><%- include('../partials/icon', { name: 'invoice', size: 14 }) %> <% const mn = counts.get(null) || 0; %><%= mn %> invoice<%= mn === 1 ? "" : "s" %></span><span><%- include('../partials/icon', { name: 'settings', size: 14 }) %> Edit in Settings</span></div>
+  </a>
+  <% for (const b of list) { %>
+    <a class="profile-card <%= b.archived ? 'inactive' : '' %>" href="/businesses/<%= b.id %>" style="--accent:<%= /^#[0-9a-f]{6}$/i.test(b.accent_color || '') ? b.accent_color : main.accent_color %>;--heading:<%= /^#[0-9a-f]{6}$/i.test(b.heading_color || '') ? b.heading_color : main.heading_color %>">
+      <div class="profile-top">
+        <span class="biz-logo"><% if (b.logo_file) { %><img src="/logo?b=<%= b.id %>&v=<%= b.logo_file %>" alt=""><% } else { %><span class="brand-mark"><%= b.name.charAt(0).toUpperCase() %></span><% } %></span>
+        <% if (b.archived) { %><span class="badge badge-void">archived</span><% } else if (b.own_numbering === '1') { %><span class="badge badge-sent"><%= b.invoice_prefix || 'own' %> numbering</span><% } %>
+      </div>
+      <div class="profile-name"><%= b.name %></div>
+      <div class="muted small"><%= b.business_email || b.from_email || '—' %></div>
+      <div class="profile-meta mt"><span><%- include('../partials/icon', { name: 'invoice', size: 14 }) %> <% const bn = counts.get(b.id) || 0; %><%= bn %> invoice<%= bn === 1 ? "" : "s" %></span></div>
+    </a>
+  <% } %>
+</div>
+<% if (!list.length) { %>
+  <p class="hint mt">Once you add a business, a <strong>Bill from</strong> choice appears on clients, invoices, estimates and recurring invoices, and reports can be split by business.</p>
+<% } %>
+<%- include('../partials/foot') %>
