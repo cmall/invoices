@@ -1,42 +1,89 @@
 <%- include('partials/head') %>
+<%
+  const hour = Number(new Intl.DateTimeFormat('en-CA', { hour: 'numeric', hour12: false }).format(new Date()));
+  const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const overdueCount = outstandingInvoices.filter(d => d.is_overdue).length;
+  // Monthly chart for the main currency this year.
+  const mainCur = (yr.byCurrency.slice().sort((a, b) => b.total - a.total)[0] || {}).currency || s.default_currency;
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const key = `${year}-${String(i + 1).padStart(2, '0')}`;
+    const m = yr.months.find(x => x.month === key && x.currency === mainCur) || { invoiced: 0, collected: 0 };
+    return { key, label: new Date(Date.UTC(2000, i, 15)).toLocaleDateString('en-CA', { month: 'narrow', timeZone: 'UTC' }), invoiced: m.invoiced, collected: m.collected };
+  });
+  const maxMonth = Math.max(1, ...months.map(m => Math.max(m.invoiced, m.collected)));
+  const thisMonth = u.today().slice(0, 7);
+%>
 <div class="page-head">
-  <h1>Dashboard</h1>
+  <div>
+    <p class="eyebrow"><%= new Date().toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric' }) %></p>
+    <h1><%= greeting %><%= s.business_name ? '' : '' %></h1>
+  </div>
   <div class="actions">
-    <a class="btn" href="/estimates/new">New estimate</a>
-    <a class="btn primary" href="/invoices/new">New invoice</a>
+    <a class="btn" href="/estimates/new"><%- include('partials/icon', { name: 'estimate' }) %> New estimate</a>
+    <a class="btn primary" href="/invoices/new"><%- include('partials/icon', { name: 'plus' }) %> New invoice</a>
   </div>
 </div>
 
 <% if (needsSetup) { %>
   <div class="card notice">
-    <strong>Finish setting up.</strong> Add your business name, address and the email address invoices are sent from in
-    <a href="/settings">Settings</a>. Then add your tax rates and your first <a href="/clients/new">client</a>.
+    <%- include('partials/icon', { name: 'sparkle' }) %>
+    <div><strong>Finish setting up.</strong> Add your business details, logo and the email address invoices are sent from in
+    <a href="/settings">Settings</a>, then add your tax rates and your first <a href="/clients/new">client</a>.</div>
   </div>
 <% } %>
 
-<div class="stats">
-  <div class="stat">
-    <div class="stat-label">Outstanding</div>
-    <% if (!outstanding.length) { %><div class="stat-value">—</div><% } %>
-    <% for (const o of outstanding) { %><div class="stat-value"><%= u.formatMoney(o.balance, o.currency) %></div><% } %>
-    <div class="stat-sub"><%= outstandingInvoices.length %> open invoice<%= outstandingInvoices.length === 1 ? '' : 's' %>, <%= outstandingInvoices.filter(d => d.is_overdue).length %> overdue</div>
+<div class="hero-grid">
+  <div class="hero">
+    <div class="hero-top">
+      <div>
+        <div class="hero-label">Outstanding</div>
+        <% if (!outstanding.length) { %><div class="hero-value">All paid up</div><% } %>
+        <% for (const o of outstanding) { %><div class="hero-value"><%= u.formatMoney(o.balance, o.currency) %></div><% } %>
+        <div class="hero-sub">
+          <%= outstandingInvoices.length %> open invoice<%= outstandingInvoices.length === 1 ? '' : 's' %>
+          <% if (overdueCount) { %><span class="hero-pill"><%- include('partials/icon', { name: 'alert', size: 14 }) %> <%= overdueCount %> overdue</span><% } %>
+        </div>
+      </div>
+      <div class="hero-icon"><%- include('partials/icon', { name: 'wallet', size: 26 }) %></div>
+    </div>
+    <div class="chart" role="img" aria-label="Invoiced and collected by month in <%= year %>">
+      <% for (const m of months) { %>
+        <div class="chart-col <%= m.key === thisMonth ? 'current' : '' %>" title="<%= m.key %>: invoiced <%= u.formatMoney(m.invoiced, mainCur) %>, collected <%= u.formatMoney(m.collected, mainCur) %>">
+          <div class="chart-bars">
+            <span class="bar inv" style="height:<%= Math.round(m.invoiced / maxMonth * 100) %>%"></span>
+            <span class="bar col" style="height:<%= Math.round(m.collected / maxMonth * 100) %>%"></span>
+          </div>
+          <span class="chart-label"><%= m.label %></span>
+        </div>
+      <% } %>
+    </div>
+    <div class="chart-legend"><span><i class="lg inv"></i>Invoiced</span><span><i class="lg col"></i>Collected</span><span class="muted-light"><%= mainCur %> · <%= year %></span></div>
   </div>
-  <div class="stat">
-    <div class="stat-label">Invoiced in <%= year %></div>
-    <% if (!yr.byCurrency.length) { %><div class="stat-value">—</div><% } %>
-    <% for (const c of yr.byCurrency) { %><div class="stat-value"><%= u.formatMoney(c.total, c.currency) %></div><% } %>
-    <div class="stat-sub"><%= yr.invoices.length %> invoice<%= yr.invoices.length === 1 ? '' : 's' %></div>
-  </div>
-  <div class="stat">
-    <div class="stat-label">Collected in <%= year %></div>
-    <% if (!yr.collected.length) { %><div class="stat-value">—</div><% } %>
-    <% for (const c of yr.collected) { %><div class="stat-value"><%= u.formatMoney(c.amount, c.currency) %></div><% } %>
-    <div class="stat-sub"><a href="/reports">View reports</a></div>
+
+  <div class="stat-stack">
+    <div class="stat">
+      <div class="stat-icon"><%- include('partials/icon', { name: 'trend' }) %></div>
+      <div>
+        <div class="stat-label">Invoiced in <%= year %></div>
+        <% if (!yr.byCurrency.length) { %><div class="stat-value">—</div><% } %>
+        <% for (const c of yr.byCurrency) { %><div class="stat-value"><%= u.formatMoney(c.total, c.currency) %></div><% } %>
+        <div class="stat-sub"><%= yr.invoices.length %> invoice<%= yr.invoices.length === 1 ? '' : 's' %></div>
+      </div>
+    </div>
+    <div class="stat">
+      <div class="stat-icon"><%- include('partials/icon', { name: 'check' }) %></div>
+      <div>
+        <div class="stat-label">Collected in <%= year %></div>
+        <% if (!yr.collected.length) { %><div class="stat-value">—</div><% } %>
+        <% for (const c of yr.collected) { %><div class="stat-value"><%= u.formatMoney(c.amount, c.currency) %></div><% } %>
+        <div class="stat-sub"><a href="/reports">View reports →</a></div>
+      </div>
+    </div>
   </div>
 </div>
 
 <section>
-  <h2>Open drafts</h2>
+  <div class="section-head"><h2>Open drafts</h2><span class="muted small">Add lines as you work, send when ready</span></div>
   <% if (!drafts.length) { %>
     <p class="muted">No draft invoices. Start one to add lines as you work: <a href="/invoices/new">new invoice</a>.</p>
   <% } %>
@@ -58,7 +105,7 @@
 </section>
 
 <section>
-  <h2>Awaiting payment</h2>
+  <div class="section-head"><h2>Awaiting payment</h2><a class="small" href="/invoices?status=outstanding">View all →</a></div>
   <% if (!outstandingInvoices.length) { %><p class="muted">Nothing outstanding.</p><% } else { %>
   <table class="table">
     <thead><tr><th>Invoice</th><th>Client</th><th>Due</th><th>Status</th><th class="num">Balance</th></tr></thead>

@@ -5,6 +5,7 @@ A small, self-hosted invoicing app for freelancers and small studios who send a 
 - **Clients, projects and rates**: each client has its own currency, payment terms and default taxes. Projects carry an hourly rate that fills in automatically.
 - **Invoices and estimates**: line items with optional dates, quantities, discounts and notes. A draft stays open so you can keep adding lines as you work, then send it when you're ready. Estimates can be accepted online and turned into invoices in one click.
 - **Taxes**: any number of named tax rates (GST, HST, PST, VAT, sales tax…) with registration numbers printed on the invoice. Each line can be marked taxable or not, and old invoices never change when you edit a rate.
+- **Modern interface** with light and dark modes, built around your brand colours, plus one-click updates from GitHub.
 - **Your branding**: upload a logo and pick from colour themes or your own accent and heading colours, with a modern or classic typeface. Branding applies to PDFs, the client payment page, emails and the app itself, with a live preview in Settings.
 - **PDF invoices by email** through [Postmark](https://postmarkapp.com), with an editable message, an attached PDF and a link to the online invoice.
 - **Online payments** through [Stripe Checkout](https://stripe.com/payments/checkout). Payments are recorded automatically, and the client gets a receipt. You can also record e-transfers, cheques and bank transfers by hand.
@@ -124,13 +125,18 @@ To restore, stop the app and replace `data/invoices.db` with a backup.
 
 ## Updating
 
+**From the app:** open **Updates** in the sidebar and click **Check for updates**, then **Update now**. The app pulls the latest version of the `main` branch from GitHub, reinstalls dependencies if they changed, and restarts itself when it runs under PM2. A badge appears in the sidebar when an update is available (checked twice a day). Your `data/` folder and `.env` are never touched.
+
+**From the command line:**
+
 ```bash
-git pull
-npm ci --omit=dev
-pm2 restart invoices     # or: docker compose up -d --build
+cd /path/to/invoices
+npm run update
 ```
 
-Database changes are applied automatically on start.
+This runs the same steps (`git` fast-forward to `main`, `npm ci` when needed, `pm2 restart invoices`). With Docker, use `git pull && docker compose up -d --build` instead.
+
+Database changes are applied automatically on start. To follow a different branch, set `UPDATE_BRANCH` in `.env`.
 
 ## Configuration reference (`.env`)
 
@@ -145,6 +151,7 @@ Database changes are applied automatically on start.
 | `POSTMARK_MESSAGE_STREAM` | Postmark message stream (default `outbound`). |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | Stripe API key and webhook signing secret. |
 | `DATA_DIR` | Where the database, logo and backups live (default `./data`). |
+| `UPDATE_BRANCH` | GitHub branch used by in-app updates and `npm run update` (default `main`). `UPDATES_ENABLED=0` hides in-app updates. |
 
 Everything else, including business details, logo, colours, numbering, default terms, reminder schedule and email templates, is edited in the app under **Settings**.
 

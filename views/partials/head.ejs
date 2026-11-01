@@ -4,25 +4,44 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><%= title %><%= s.business_name ? ` · ${s.business_name}` : '' %></title>
+<link rel="preload" href="/static/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/app.css">
-<% const hex = (c, d) => /^#[0-9a-f]{6}$/i.test(c || '') ? c : d; %>
-<style>:root{--accent:<%= hex(s.accent_color, '#2f5d8a') %>;--heading:<%= hex(s.heading_color, hex(s.accent_color, '#2f5d8a')) %>}</style>
+<%- include('theme') %>
 </head>
-<body>
+<body class="<%= loggedIn ? 'app' : 'auth' %>">
+<div class="backdrop" aria-hidden="true"></div>
 <% if (loggedIn) { %>
-<header class="topbar">
-  <div class="topbar-inner">
-    <a class="brand" href="/"><% if (s.logo_file) { %><img src="/logo?v=<%= s.logo_file %>" alt="<%= s.business_name || 'Home' %>" class="brand-logo"><% } else { %><span><%= s.business_name || 'Invoices' %></span><% } %></a>
-    <nav>
-      <% const nav = [['/', 'Dashboard'], ['/invoices', 'Invoices'], ['/estimates', 'Estimates'], ['/clients', 'Clients'], ['/projects', 'Projects'], ['/reports', 'Reports'], ['/settings', 'Settings']]; %>
-      <% for (const [href, label] of nav) { const active = href === '/' ? path === '/' : path.startsWith(href); %>
-        <a href="<%= href %>" class="<%= active ? 'active' : '' %>"><%= label %></a>
-      <% } %>
-    </nav>
-    <form method="post" action="/logout" class="logout"><button class="link">Log out</button></form>
-  </div>
-</header>
+<div class="shell">
+  <aside class="sidebar" data-sidebar>
+    <div class="sidebar-top">
+      <a class="brand" href="/">
+        <% if (s.logo_file) { %><img src="/logo?v=<%= s.logo_file %>" alt="<%= s.business_name || 'Home' %>" class="brand-logo">
+        <% } else { %><span class="brand-mark"><%= (s.business_name || 'Invoices').trim().charAt(0).toUpperCase() %></span><span class="brand-name"><%= s.business_name || 'Invoices' %></span><% } %>
+      </a>
+      <button type="button" class="icon-btn menu-btn" data-menu aria-label="Menu"><%- include('icon', { name: 'menu' }) %></button>
+    </div>
+    <div class="sidebar-body">
+      <a class="btn primary block new-btn" href="/invoices/new"><%- include('icon', { name: 'plus' }) %> New invoice</a>
+      <nav class="nav">
+        <% const nav = [['/', 'Dashboard', 'dashboard'], ['/invoices', 'Invoices', 'invoice'], ['/estimates', 'Estimates', 'estimate'], ['/clients', 'Clients', 'clients'], ['/projects', 'Projects', 'projects'], ['/reports', 'Reports', 'reports'], ['/settings', 'Settings', 'settings']]; %>
+        <% for (const [href, label, icon] of nav) { const active = href === '/' ? path === '/' : path.startsWith(href); %>
+          <a href="<%= href %>" class="<%= active ? 'active' : '' %>"><%- include('icon', { name: icon }) %><span><%= label %></span></a>
+        <% } %>
+        <a href="/updates" class="<%= path.startsWith('/updates') ? 'active' : '' %>"><%- include('icon', { name: 'refresh' }) %><span>Updates</span><% if (updateAvailable) { %><span class="nav-dot" title="Update available">New</span><% } %></a>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="theme-switch" role="radiogroup" aria-label="Theme">
+          <button type="button" data-theme-set="light" title="Light"><%- include('icon', { name: 'sun', size: 16 }) %></button>
+          <button type="button" data-theme-set="system" title="Match system"><%- include('icon', { name: 'monitor', size: 16 }) %></button>
+          <button type="button" data-theme-set="dark" title="Dark"><%- include('icon', { name: 'moon', size: 16 }) %></button>
+        </div>
+        <form method="post" action="/logout"><button class="nav-link-btn"><%- include('icon', { name: 'logout' }) %><span>Log out</span></button></form>
+      </div>
+    </div>
+  </aside>
+  <main class="main">
+<% } else { %>
+  <main class="container narrow">
 <% } %>
-<main class="<%= loggedIn ? 'container' : 'container narrow' %>">
-<% if (flash) { %><div class="flash ok"><%= flash %></div><% } %>
-<% if (flashError) { %><div class="flash err"><%= flashError %></div><% } %>
+<% if (flash) { %><div class="flash ok"><%- include('icon', { name: 'check' }) %><span><%= flash %></span></div><% } %>
+<% if (flashError) { %><div class="flash err"><%- include('icon', { name: 'alert' }) %><span><%= flashError %></span></div><% } %>

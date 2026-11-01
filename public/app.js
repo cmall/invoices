@@ -41,6 +41,64 @@
     });
   });
 
+  // Theme switcher: light / system / dark, remembered in this browser.
+  function markTheme() {
+    var pref = document.documentElement.getAttribute('data-theme-pref') || 'system';
+    document.querySelectorAll('[data-theme-set]').forEach(function (b) {
+      b.classList.toggle('active', b.getAttribute('data-theme-set') === pref);
+      b.setAttribute('aria-pressed', b.getAttribute('data-theme-set') === pref ? 'true' : 'false');
+    });
+  }
+  document.querySelectorAll('[data-theme-set]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var pref = b.getAttribute('data-theme-set');
+      try { localStorage.setItem('theme', pref); } catch (e) {}
+      document.documentElement.setAttribute('data-theme-pref', pref);
+      if (window.__applyTheme) window.__applyTheme();
+      markTheme();
+    });
+  });
+  markTheme();
+
+  // Mobile menu.
+  var menuBtn = document.querySelector('[data-menu]');
+  if (menuBtn) {
+    menuBtn.addEventListener('click', function () {
+      document.querySelector('[data-sidebar]').classList.toggle('open');
+    });
+  }
+
+  // Live update log while an update runs, then reload once the new version is up.
+  var jobEl = document.querySelector('[data-update-job]');
+  if (jobEl && (jobEl.getAttribute('data-running') === '1' || jobEl.getAttribute('data-restarting') === '1')) {
+    var startSha = jobEl.getAttribute('data-sha');
+    var logEl = jobEl.querySelector('[data-job-log]');
+    var badge = jobEl.querySelector('[data-job-badge]');
+    var poll = function () {
+      fetch('/updates/status', { headers: { Accept: 'application/json' }, credentials: 'same-origin' })
+        .then(function (r) { if (!r.ok) throw new Error(); return r.json(); })
+        .then(function (data) {
+          var j = data.job;
+          if (data.sha && data.sha !== startSha && (!j || !j.running)) {
+            window.location.href = '/updates?msg=' + encodeURIComponent('Updated to ' + data.sha);
+            return;
+          }
+          if (j) {
+            logEl.textContent = j.log;
+            logEl.scrollTop = logEl.scrollHeight;
+            badge.textContent = j.running ? 'running' : j.ok ? (j.restarting ? 'restarting' : 'done') : 'failed';
+            if (!j.running && !j.restarting) { window.location.reload(); return; }
+          }
+          setTimeout(poll, 1500);
+        })
+        .catch(function () {
+          badge.textContent = 'restarting';
+          setTimeout(poll, 2000);
+        });
+    };
+    setTimeout(poll, 1000);
+  }
+
   // Auto-submit file inputs (logo upload).
   document.querySelectorAll('[data-autosubmit]').forEach(function (input) {
     input.addEventListener('change', function () { if (input.files.length) input.form.submit(); });

@@ -12,6 +12,7 @@ const email = require('../email');
 const reminders = require('../reminders');
 const reports = require('../reports');
 const harvest = require('../harvest');
+const updater = require('../updater');
 const { renderPdf, pdfFilename, publicUrl } = require('../pdf');
 const {
   CURRENCIES,
@@ -734,6 +735,36 @@ router.post('/import', async (req, res) => {
   } catch (err) {
     res.render('import', { title: 'Import from Harvest', result: null, error: err.message });
   }
+});
+
+// ---------- Updates ----------
+
+router.get('/updates', async (req, res) => {
+  res.render('updates', {
+    title: 'Updates',
+    version: await updater.currentVersion(),
+    check: updater.cachedCheck(),
+    job: updater.jobStatus(),
+  });
+});
+
+router.post('/updates/check', async (req, res) => {
+  await updater.check();
+  res.redirect('/updates');
+});
+
+router.post('/updates/run', (req, res) => {
+  try {
+    updater.startUpdate();
+    res.redirect('/updates');
+  } catch (err) {
+    res.redirect(`/updates?err=${q(err.message)}`);
+  }
+});
+
+router.get('/updates/status', async (req, res) => {
+  const v = await updater.currentVersion();
+  res.json({ sha: v.sha || null, job: updater.jobStatus() });
 });
 
 // ---------- Backup ----------

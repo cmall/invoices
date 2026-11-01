@@ -5,9 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title><%= title %><%= s.business_name ? ` · ${s.business_name}` : '' %></title>
+<link rel="preload" href="/static/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/static/app.css">
-<% const hex = (c, d) => /^#[0-9a-f]{6}$/i.test(c || '') ? c : d; %>
-<style>:root{--accent:<%= hex(s.accent_color, '#2f5d8a') %>;--heading:<%= hex(s.heading_color, hex(s.accent_color, '#2f5d8a')) %>}</style>
+<%- include('../partials/theme') %>
 </head>
 <body class="public">
+<div class="backdrop" aria-hidden="true"></div>
 <main class="container public-container">

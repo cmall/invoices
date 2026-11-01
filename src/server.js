@@ -8,6 +8,7 @@ const settings = require('./settings');
 const util = require('./util');
 const stripe = require('./stripe');
 const reminders = require('./reminders');
+const updater = require('./updater');
 
 function createApp() {
   const app = express();
@@ -35,6 +36,10 @@ function createApp() {
   });
 
   app.use(express.urlencoded({ extended: false, limit: '2mb', parameterLimit: 5000 }));
+  app.use(
+    '/static/fonts',
+    express.static(path.join(config.root, 'node_modules/@fontsource-variable/inter/files'), { maxAge: '30d', immutable: true }),
+  );
   app.use('/static', express.static(path.join(config.root, 'public'), { maxAge: config.isProduction ? '7d' : 0 }));
   app.use(auth.loadSession);
 
@@ -42,6 +47,8 @@ function createApp() {
     res.locals.s = settings.getAll();
     res.locals.u = util;
     res.locals.path = req.path;
+    const uc = updater.cachedCheck();
+    res.locals.updateAvailable = Boolean(uc && uc.behind > 0);
     res.locals.flash = req.query.msg ? String(req.query.msg).slice(0, 300) : '';
     res.locals.flashError = req.query.err ? String(req.query.err).slice(0, 300) : '';
     res.locals.config = { postmark: Boolean(config.postmarkToken), stripe: Boolean(config.stripeSecretKey), stripeWebhook: Boolean(config.stripeWebhookSecret), appUrl: config.appUrl };
@@ -66,7 +73,10 @@ if (require.main === module) {
     console.log(`Invoices running on http://${config.host}:${config.port} (public URL ${config.appUrl})`);
     if (!config.adminPasswordHash) console.warn('ADMIN_PASSWORD_HASH is not set. Run "npm run setup" to create one.');
   });
-  if (!config.disableScheduler) reminders.start();
+  if (!config.disableScheduler) {
+    reminders.start();
+    updater.startBackgroundChecks();
+  }
 }
 
 module.exports = { createApp };

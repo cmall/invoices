@@ -74,12 +74,13 @@ In Stripe, add a webhook endpoint at `https://invoices.example.com/webhooks/stri
 
 ## Updating
 
+Open **Updates** in the app's sidebar and click **Update now**. Or, over SSH:
+
 ```bash
-cd ~/htdocs/invoices.example.com
-git pull
-npm ci --omit=dev
-pm2 restart invoices
+cd ~/htdocs/invoices.example.com && npm run update
 ```
+
+Both follow the `main` branch on GitHub and restart the app through PM2.
 
 ## Troubleshooting
 

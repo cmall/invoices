@@ -9,7 +9,8 @@
     "setup": "node scripts/setup.js",
     "hash-password": "node scripts/hash-password.js",
     "backup": "node scripts/backup.js",
-    "test": "node --test --test-concurrency=1 test/*.test.js"
+    "test": "node --test --test-concurrency=1 test/*.test.js",
+    "update": "bash scripts/update.sh"
   },
   "repository": {
     "type": "git",
@@ -21,6 +22,7 @@
   },
   "homepage": "https://github.com/cmall/invoices#readme",
   "dependencies": {
+    "@fontsource-variable/inter": "^5.3.0",
     "better-sqlite3": "^13.0.3",
     "ejs": "^7.0.2",
     "express": "^5.3.0",

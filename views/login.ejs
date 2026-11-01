@@ -1,6 +1,7 @@
 <%- include('partials/head') %>
 <div class="card login">
-  <% if (s.logo_file) { %><img src="/logo?v=<%= s.logo_file %>" alt="<%= s.business_name %>" class="login-logo"><% } else { %><h1><%= s.business_name || 'Invoices' %></h1><% } %>
+  <% if (s.logo_file) { %><img src="/logo?v=<%= s.logo_file %>" alt="<%= s.business_name %>" class="login-logo"><% } else { %><div class="brand-mark big"><%= (s.business_name || 'Invoices').trim().charAt(0).toUpperCase() %></div><h1><%= s.business_name || 'Invoices' %></h1><% } %>
+  <p class="muted center">Sign in to manage your invoices</p>
   <% if (setupNeeded) { %>
     <div class="flash err">No admin password is configured yet. On the server, run <code>npm run setup</code> and restart the app.</div>
   <% } %>

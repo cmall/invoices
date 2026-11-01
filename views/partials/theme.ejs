@@ -1,0 +1,18 @@
+<% const hex = (c, d) => /^#[0-9a-f]{6}$/i.test(c || '') ? c : d; const accent = hex(s.accent_color, '#2f5d8a'); %>
+<style>:root{--accent:<%= accent %>;--heading:<%= hex(s.heading_color, accent) %>}</style>
+<script>
+  // Apply the saved theme before the page paints (light, dark, or follow the system).
+  (function () {
+    var pref = 'system';
+    try { pref = localStorage.getItem('theme') || 'system'; } catch (e) {}
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    function apply() {
+      var p = document.documentElement.getAttribute('data-theme-pref') || 'system';
+      document.documentElement.setAttribute('data-theme', p === 'system' ? (mq.matches ? 'dark' : 'light') : p);
+    }
+    document.documentElement.setAttribute('data-theme-pref', pref);
+    apply();
+    mq.addEventListener && mq.addEventListener('change', apply);
+    window.__applyTheme = apply;
+  })();
+</script>

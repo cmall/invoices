@@ -1,0 +1,71 @@
+<%- include('partials/head') %>
+<div class="page-head">
+  <div>
+    <p class="eyebrow">System</p>
+    <h1>Updates</h1>
+  </div>
+  <% if (version.enabled && !(job && job.running)) { %>
+  <form method="post" action="/updates/check">
+    <%- include('partials/csrf') %>
+    <button class="btn" data-busy="Checking…"><%- include('partials/icon', { name: 'refresh' }) %> Check for updates</button>
+  </form>
+  <% } %>
+</div>
+
+<% if (!version.enabled) { %>
+  <div class="card notice warn"><%- include('partials/icon', { name: 'alert' }) %><div><strong>In-app updates are unavailable.</strong> <%= version.reason %> See the README for updating by hand.</div></div>
+<% } else { %>
+<div class="two-col">
+  <div class="card">
+    <h2>Installed version</h2>
+    <dl class="dl">
+      <dt>Version</dt><dd><code><%= version.sha %></code></dd>
+      <dt>Branch</dt><dd><code><%= version.branch %></code><% if (version.branch !== version.target) { %> <span class="muted small">(updates come from <code><%= version.target %></code>)</span><% } %></dd>
+      <dt>Updates from</dt><dd>GitHub · <code><%= version.target %></code></dd>
+      <dt>Latest change</dt><dd><%= version.subject %><br><span class="muted small"><%= new Date(version.date).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' }) %></span></dd>
+      <dt>Restart</dt><dd><%= version.canRestart ? 'Automatic (managed by PM2)' : 'Manual: restart the app after updating' %></dd>
+    </dl>
+  </div>
+
+  <div class="card">
+    <h2>Available</h2>
+    <% if (!check) { %>
+      <p class="muted">Not checked yet. Click <strong>Check for updates</strong>.</p>
+    <% } else if (check.error) { %>
+      <div class="flash err"><%- include('partials/icon', { name: 'alert' }) %><span><%= check.error %></span></div>
+    <% } else if (!check.behind && check.switchBranch) { %>
+      <p>No new changes, but this copy is on <code><%= version.branch %></code>. Switch it to <code><%= version.target %></code> so future updates come from there.</p>
+      <form method="post" action="/updates/run">
+        <%- include('partials/csrf') %>
+        <button class="btn primary"><%- include('partials/icon', { name: 'refresh' }) %> Switch to <%= version.target %></button>
+      </form>
+    <% } else if (!check.behind) { %>
+      <div class="empty-state small-state"><div class="empty-icon ok"><%- include('partials/icon', { name: 'check', size: 22 }) %></div><p><strong>You're up to date.</strong></p><p class="muted small">Checked <%= new Date(check.at).toLocaleString('en-CA', { dateStyle: 'medium', timeStyle: 'short' }) %></p></div>
+    <% } else { %>
+      <p><strong><%= check.behind %> new change<%= check.behind === 1 ? '' : 's' %></strong> on GitHub:</p>
+      <ul class="commit-list">
+        <% for (const c of check.commits) { %><li><code><%= c.sha %></code> <span><%= c.subject %></span></li><% } %>
+      </ul>
+      <% if (check.dirty.length) { %>
+        <div class="flash err"><%- include('partials/icon', { name: 'alert' }) %><span>Some app files were edited on the server (<%= check.dirty.length %>), so the update would be refused. Undo them with <code>git checkout -- .</code> in the app folder.</span></div>
+      <% } %>
+      <form method="post" action="/updates/run" data-confirm="Install the update now? The app restarts for a few seconds.">
+        <%- include('partials/csrf') %>
+        <button class="btn primary"><%- include('partials/icon', { name: 'download' }) %> Update now</button>
+      </form>
+      <p class="hint mt">Your data folder and .env are never touched. Download a <a href="/backup">backup</a> first if you like.</p>
+    <% } %>
+  </div>
+</div>
+
+<% if (job) { %>
+<div class="card" data-update-job data-running="<%= job.running ? '1' : '0' %>" data-restarting="<%= job.restarting ? '1' : '0' %>" data-sha="<%= version.sha %>">
+  <div class="section-head">
+    <h2>Update log</h2>
+    <span class="badge <%= job.running ? 'badge-sent' : job.ok ? 'badge-paid' : 'badge-overdue' %>" data-job-badge><%= job.running ? 'running' : job.ok ? (job.restarting ? 'restarting' : 'done') : 'failed' %></span>
+  </div>
+  <pre class="log" data-job-log><%= job.log %></pre>
+</div>
+<% } %>
+<% } %>
+<%- include('partials/foot') %>
