@@ -1,0 +1,114 @@
+<%- include('partials/head') %>
+<div class="page-head">
+  <h1>Dashboard</h1>
+  <div class="actions">
+    <a class="btn" href="/estimates/new">New estimate</a>
+    <a class="btn primary" href="/invoices/new">New invoice</a>
+  </div>
+</div>
+
+<% if (needsSetup) { %>
+  <div class="card notice">
+    <strong>Finish setting up.</strong> Add your business name, address and the email address invoices are sent from in
+    <a href="/settings">Settings</a>. Then add your tax rates and your first <a href="/clients/new">client</a>.
+  </div>
+<% } %>
+
+<div class="stats">
+  <div class="stat">
+    <div class="stat-label">Outstanding</div>
+    <% if (!outstanding.length) { %><div class="stat-value">—</div><% } %>
+    <% for (const o of outstanding) { %><div class="stat-value"><%= u.formatMoney(o.balance, o.currency) %></div><% } %>
+    <div class="stat-sub"><%= outstandingInvoices.length %> open invoice<%= outstandingInvoices.length === 1 ? '' : 's' %>, <%= outstandingInvoices.filter(d => d.is_overdue).length %> overdue</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Invoiced in <%= year %></div>
+    <% if (!yr.byCurrency.length) { %><div class="stat-value">—</div><% } %>
+    <% for (const c of yr.byCurrency) { %><div class="stat-value"><%= u.formatMoney(c.total, c.currency) %></div><% } %>
+    <div class="stat-sub"><%= yr.invoices.length %> invoice<%= yr.invoices.length === 1 ? '' : 's' %></div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Collected in <%= year %></div>
+    <% if (!yr.collected.length) { %><div class="stat-value">—</div><% } %>
+    <% for (const c of yr.collected) { %><div class="stat-value"><%= u.formatMoney(c.amount, c.currency) %></div><% } %>
+    <div class="stat-sub"><a href="/reports">View reports</a></div>
+  </div>
+</div>
+
+<section>
+  <h2>Open drafts</h2>
+  <% if (!drafts.length) { %>
+    <p class="muted">No draft invoices. Start one to add lines as you work: <a href="/invoices/new">new invoice</a>.</p>
+  <% } %>
+  <% for (const d of drafts) { %>
+    <div class="card draft">
+      <div class="draft-head">
+        <div>
+          <a href="/invoices/<%= d.id %>"><strong><%= d.number %></strong></a>
+          <span class="muted">· <%= d.client_name %><%= d.subject ? ` · ${d.subject}` : '' %></span>
+        </div>
+        <div class="draft-total"><%= u.formatMoney(d.total_cents, d.currency) %></div>
+      </div>
+      <details>
+        <summary>Add a line</summary>
+        <%- include('partials/quickadd', { doc: d, base: '/invoices', projects, returnTo: 'dashboard' }) %>
+      </details>
+    </div>
+  <% } %>
+</section>
+
+<section>
+  <h2>Awaiting payment</h2>
+  <% if (!outstandingInvoices.length) { %><p class="muted">Nothing outstanding.</p><% } else { %>
+  <table class="table">
+    <thead><tr><th>Invoice</th><th>Client</th><th>Due</th><th>Status</th><th class="num">Balance</th></tr></thead>
+    <tbody>
+    <% for (const d of outstandingInvoices) { %>
+      <tr>
+        <td><a href="/invoices/<%= d.id %>"><%= d.number %></a></td>
+        <td><%= d.client_name %></td>
+        <td><%= u.formatDate(d.due_date) %></td>
+        <td><%- include('partials/status', { status: d.display_status }) %></td>
+        <td class="num"><%= u.formatMoney(d.balance_cents, d.currency) %></td>
+      </tr>
+    <% } %>
+    </tbody>
+  </table>
+  <% } %>
+</section>
+
+<div class="two-col">
+  <section>
+    <h2>Open estimates</h2>
+    <% if (!openEstimates.length) { %><p class="muted">No estimates waiting on a reply.</p><% } else { %>
+    <table class="table">
+      <tbody>
+      <% for (const d of openEstimates) { %>
+        <tr>
+          <td><a href="/estimates/<%= d.id %>"><%= d.number %></a></td>
+          <td><%= d.client_name %></td>
+          <td class="num"><%= u.formatMoney(d.total_cents, d.currency) %></td>
+        </tr>
+      <% } %>
+      </tbody>
+    </table>
+    <% } %>
+  </section>
+  <section>
+    <h2>Recent payments</h2>
+    <% if (!recentPayments.length) { %><p class="muted">No payments yet.</p><% } else { %>
+    <table class="table">
+      <tbody>
+      <% for (const p of recentPayments) { %>
+        <tr>
+          <td><%= u.formatDate(p.paid_date) %></td>
+          <td><a href="/invoices/<%= p.doc_id %>"><%= p.number %></a> · <%= p.client_name %></td>
+          <td class="num"><%= u.formatMoney(p.amount_cents, p.currency) %></td>
+        </tr>
+      <% } %>
+      </tbody>
+    </table>
+    <% } %>
+  </section>
+</div>
+<%- include('partials/foot') %>

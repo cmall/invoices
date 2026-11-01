@@ -1,0 +1,29 @@
+<%- include('../partials/head') %>
+<div class="page-head"><h1>Projects</h1></div>
+<form method="post" action="/projects" class="card inline-form">
+  <%- include('../partials/csrf') %>
+  <select name="client_id" required>
+    <option value="">Client…</option>
+    <% for (const c of clients) { %><option value="<%= c.id %>"><%= c.name %></option><% } %>
+  </select>
+  <input name="name" placeholder="Project name" required>
+  <input name="code" placeholder="Code (optional)" class="w-sm">
+  <input name="hourly_rate" placeholder="Rate / hr" inputmode="decimal" class="w-sm">
+  <button class="btn primary">Add project</button>
+</form>
+<% if (!projects.length) { %><p class="muted">No projects yet.</p><% } else { %>
+<table class="table">
+  <thead><tr><th>Project</th><th>Client</th><th class="num">Rate</th><th></th></tr></thead>
+  <tbody>
+  <% for (const p of projects) { %>
+    <tr class="<%= p.archived ? 'dim' : '' %>">
+      <td><strong><%= p.name %></strong><% if (p.code) { %> <span class="muted"><%= p.code %></span><% } %><% if (p.archived) { %> <span class="badge">archived</span><% } %></td>
+      <td><a href="/clients/<%= p.client_id %>"><%= p.client_name %></a></td>
+      <td class="num"><%= p.hourly_rate_cents != null ? `${u.formatMoney(p.hourly_rate_cents, p.currency)}/hr` : '—' %></td>
+      <td class="num"><a href="/projects/<%= p.id %>/edit">Edit</a></td>
+    </tr>
+  <% } %>
+  </tbody>
+</table>
+<% } %>
+<%- include('../partials/foot') %>

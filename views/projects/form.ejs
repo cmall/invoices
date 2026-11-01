@@ -1,0 +1,22 @@
+<%- include('../partials/head') %>
+<div class="page-head"><h1><%= title %></h1></div>
+<form method="post" action="/projects/<%= project.id %>" class="card form-grid">
+  <%- include('../partials/csrf') %>
+  <label class="span-2">Name <input name="name" value="<%= project.name %>" required></label>
+  <label>Client
+    <select name="client_id">
+      <% for (const c of clients) { %><option value="<%= c.id %>" <%= c.id === project.client_id ? 'selected' : '' %>><%= c.name %></option><% } %>
+    </select>
+  </label>
+  <label>Code <input name="code" value="<%= project.code %>"></label>
+  <label>Hourly rate <input name="hourly_rate" inputmode="decimal" value="<%= u.centsToInput(project.hourly_rate_cents) %>"></label>
+  <div class="span-2 actions">
+    <button class="btn primary">Save project</button>
+    <a class="btn" href="/clients/<%= project.client_id %>#projects">Cancel</a>
+  </div>
+</form>
+<form method="post" action="/projects/<%= project.id %>/archive" class="danger-zone">
+  <%- include('../partials/csrf') %>
+  <button class="btn small"><%= project.archived ? 'Restore project' : 'Archive project' %></button>
+</form>
+<%- include('../partials/foot') %>

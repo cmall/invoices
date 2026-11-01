@@ -1,0 +1,75 @@
+<%# HTML rendering of an invoice/estimate. Used by the admin view and the public client page. Locals: doc %>
+<% const m = (c) => u.formatMoney(c, doc.currency); const isInv = doc.kind === 'invoice'; %>
+<article class="paper font-<%= s.invoice_font === 'classic' ? 'classic' : 'modern' %> logo-<%= ['small','large'].includes(s.logo_size) ? s.logo_size : 'medium' %>">
+  <header class="paper-head">
+    <div class="paper-brand">
+      <% if (s.logo_file) { %><img src="/logo" alt="<%= s.business_name %>" class="paper-logo"><% } else if (s.business_name) { %><div class="paper-name"><%= s.business_name %></div><% } %>
+    </div>
+    <div class="paper-from">
+      <% for (const l of [s.business_name, ...String(s.business_address || '').split('\n'), s.business_email, s.business_phone, s.business_website].filter(x => x && x.trim())) { %><div><%= l %></div><% } %>
+    </div>
+  </header>
+
+  <div class="paper-title">
+    <h2><%= isInv ? 'Invoice' : 'Estimate' %></h2>
+    <% if (['paid','void','accepted','declined'].includes(doc.status)) { %><%- include('../partials/status', { status: doc.status }) %><% } %>
+  </div>
+
+  <div class="paper-meta">
+    <div>
+      <div class="label"><%= isInv ? 'Bill to' : 'Prepared for' %></div>
+      <div><strong><%= doc.client.name %></strong></div>
+      <% if (doc.client.contact_name) { %><div><%= doc.client.contact_name %></div><% } %>
+      <div class="pre"><%= doc.client.address %></div>
+    </div>
+    <dl>
+      <dt><%= isInv ? 'Invoice' : 'Estimate' %> number</dt><dd><%= doc.number %></dd>
+      <dt>Issue date</dt><dd><%= u.formatDate(doc.issue_date) %></dd>
+      <% if (doc.due_date) { %><dt><%= isInv ? 'Due date' : 'Valid until' %></dt><dd><%= u.formatDate(doc.due_date) %></dd><% } %>
+      <% if (doc.po_number) { %><dt>PO number</dt><dd><%= doc.po_number %></dd><% } %>
+      <% if (isInv) { %><dt>Amount due</dt><dd><strong><%= m(doc.balance_cents) %></strong></dd><% } else { %><dt>Total</dt><dd><strong><%= m(doc.total_cents) %></strong></dd><% } %>
+    </dl>
+  </div>
+
+  <% if (doc.subject) { %><h3 class="paper-subject"><%= doc.subject %></h3><% } %>
+
+  <div class="table-scroll">
+  <table class="paper-lines">
+    <thead><tr><% if (doc.has_dates) { %><th class="col-date">Date</th><% } %><th>Description</th><th class="num col-qty">Qty</th><th class="num col-rate">Rate</th><th class="num">Amount</th></tr></thead>
+    <tbody>
+      <% if (!doc.lines.length) { %><tr><td colspan="5" class="muted">No line items yet.</td></tr><% } %>
+      <% for (const l of doc.lines) { %>
+        <tr>
+          <% if (doc.has_dates) { %><td class="nowrap muted col-date"><%= l.item_date ? u.formatShortDate(l.item_date) : '' %></td><% } %>
+          <td>
+            <% const sub = [l.kind, l.project_name].filter(Boolean).join(' · '); %>
+            <% if (sub) { %><div class="line-sub"><%= sub %></div><% } %>
+            <div class="pre"><%= l.description %></div>
+            <% if (l.item_date) { %><div class="line-sub mobile-only"><%= u.formatShortDate(l.item_date) %> · <%= u.formatQuantity(l.quantity) %> × <%= m(l.unit_price_cents) %></div><% } else { %><div class="line-sub mobile-only"><%= u.formatQuantity(l.quantity) %> × <%= m(l.unit_price_cents) %></div><% } %>
+          </td>
+          <td class="num col-qty"><%= u.formatQuantity(l.quantity) %></td>
+          <td class="num nowrap col-rate"><%= m(l.unit_price_cents) %></td>
+          <td class="num nowrap"><%= m(l.amount_cents) %></td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+  </div>
+
+  <dl class="paper-totals">
+    <dt>Subtotal</dt><dd><%= m(doc.subtotal_cents) %></dd>
+    <% if (doc.discount_cents) { %><dt>Discount (<%= u.formatRate(doc.discount_percent) %>)</dt><dd>-<%= m(doc.discount_cents) %></dd><% } %>
+    <% for (const t of doc.taxes) { %>
+      <dt><%= t.name %> (<%= u.formatRate(t.rate) %>)<% if (t.reg_number) { %> <span class="muted">#<%= t.reg_number %></span><% } %></dt><dd><%= m(t.amount_cents) %></dd>
+    <% } %>
+    <dt class="strong">Total</dt><dd class="strong"><%= m(doc.total_cents) %></dd>
+    <% if (isInv && doc.paid_cents) { %><dt>Paid</dt><dd>-<%= m(doc.paid_cents) %></dd><% } %>
+    <% if (isInv) { %><dt class="due">Balance due (<%= doc.currency %>)</dt><dd class="due"><%= m(doc.balance_cents) %></dd><% } %>
+  </dl>
+
+  <% if (isInv && doc.balance_cents > 0 && s.payment_instructions) { %>
+    <div class="paper-notes"><div class="label">Payment instructions</div><div class="pre"><%= s.payment_instructions %></div></div>
+  <% } %>
+  <% if (doc.notes) { %><div class="paper-notes"><div class="label">Notes</div><div class="pre"><%= doc.notes %></div></div><% } %>
+  <% if (doc.terms) { %><div class="paper-notes"><div class="label">Terms</div><div class="pre"><%= doc.terms %></div></div><% } %>
+</article>

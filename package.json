@@ -1,0 +1,35 @@
+{
+  "name": "invoices",
+  "version": "1.0.0",
+  "description": "Simple self-hosted invoicing: clients, projects, estimates, invoices, taxes, PDF email via Postmark and online payments via Stripe.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "setup": "node scripts/setup.js",
+    "hash-password": "node scripts/hash-password.js",
+    "backup": "node scripts/backup.js",
+    "test": "node --test --test-concurrency=1 test/*.test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cmall/invoices.git"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/cmall/invoices/issues"
+  },
+  "homepage": "https://github.com/cmall/invoices#readme",
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "ejs": "^7.0.2",
+    "express": "^5.3.0",
+    "multer": "^2.5.0",
+    "pdfkit": "^0.20.2",
+    "stripe": "^23.1.0"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20.12"
+  }
+}

@@ -1,0 +1,99 @@
+<%- include('partials/head') %>
+<div class="page-head">
+  <h1>Reports</h1>
+  <form method="get" class="inline-form">
+    <select name="year" onchange="this.form.submit()">
+      <% for (const y of years) { %><option <%= y === year ? 'selected' : '' %>><%= y %></option><% } %>
+    </select>
+    <noscript><button class="btn">Go</button></noscript>
+  </form>
+</div>
+
+<div class="two-col">
+  <div class="card">
+    <h2>Invoiced in <%= year %></h2>
+    <p class="hint">By issue date, excluding drafts and voided invoices (accrual basis).</p>
+    <% if (!r.byCurrency.length) { %><p class="muted">No invoices.</p><% } %>
+    <% for (const c of r.byCurrency) { %>
+      <dl class="totals">
+        <dt>Invoices</dt><dd><%= c.count %></dd>
+        <dt>Subtotal</dt><dd><%= u.formatMoney(c.subtotal, c.currency) %></dd>
+        <% if (c.discount) { %><dt>Discounts</dt><dd>-<%= u.formatMoney(c.discount, c.currency) %></dd><% } %>
+        <dt>Tax</dt><dd><%= u.formatMoney(c.tax, c.currency) %></dd>
+        <dt class="strong">Total (<%= c.currency %>)</dt><dd class="strong"><%= u.formatMoney(c.total, c.currency) %></dd>
+      </dl>
+    <% } %>
+  </div>
+  <div class="card">
+    <h2>Collected in <%= year %></h2>
+    <p class="hint">By payment date (cash basis). Tax is each payment's share of the invoice's tax.</p>
+    <% if (!r.collected.length) { %><p class="muted">No payments.</p><% } %>
+    <% for (const c of r.collected) { %>
+      <dl class="totals">
+        <dt>Payments</dt><dd><%= c.count %></dd>
+        <dt>Tax portion</dt><dd><%= u.formatMoney(c.tax, c.currency) %></dd>
+        <dt class="strong">Collected (<%= c.currency %>)</dt><dd class="strong"><%= u.formatMoney(c.amount, c.currency) %></dd>
+      </dl>
+    <% } %>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Tax summary</h2>
+  <% if (!r.taxes.length && !r.cashTaxes.length) { %><p class="muted">No tax charged this year.</p><% } else { %>
+  <table class="table">
+    <thead><tr><th>Tax</th><th>Currency</th><th class="num">Taxable sales</th><th class="num">Tax charged (invoiced)</th><th class="num">Tax collected (paid)</th></tr></thead>
+    <tbody>
+    <% const keys = new Map(); for (const t of r.taxes) keys.set(`${t.currency}|${t.name}|${t.rate}`, { ...t, collected: 0 });
+       for (const t of r.cashTaxes) { const k = `${t.currency}|${t.name}|${t.rate}`; if (!keys.has(k)) keys.set(k, { ...t, taxable: null, amount: 0, collected: 0 }); keys.get(k).collected = t.amount; } %>
+    <% for (const t of keys.values()) { %>
+      <tr>
+        <td><%= t.name %> (<%= u.formatRate(t.rate) %>)<% if (t.reg_number) { %> <span class="muted">#<%= t.reg_number %></span><% } %></td>
+        <td><%= t.currency %></td>
+        <td class="num"><%= t.taxable != null ? u.formatMoney(t.taxable, t.currency) : '—' %></td>
+        <td class="num"><%= u.formatMoney(t.amount, t.currency) %></td>
+        <td class="num"><%= u.formatMoney(t.collected, t.currency) %></td>
+      </tr>
+    <% } %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+
+<div class="two-col">
+  <div class="card">
+    <h2>By client</h2>
+    <% if (!r.clients.length) { %><p class="muted">No invoices.</p><% } else { %>
+    <table class="table compact">
+      <thead><tr><th>Client</th><th class="num">Invoices</th><th class="num">Invoiced</th><th class="num">Paid</th></tr></thead>
+      <tbody>
+      <% for (const c of r.clients) { %>
+        <tr><td><%= c.name %></td><td class="num"><%= c.count %></td><td class="num"><%= u.formatMoney(c.total, c.currency) %></td><td class="num"><%= u.formatMoney(c.paid, c.currency) %></td></tr>
+      <% } %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+  <div class="card">
+    <h2>By month</h2>
+    <% if (!r.months.length) { %><p class="muted">Nothing this year.</p><% } else { %>
+    <table class="table compact">
+      <thead><tr><th>Month</th><th class="num">Invoiced</th><th class="num">Collected</th></tr></thead>
+      <tbody>
+      <% for (const m of r.months) { %>
+        <tr><td><%= new Date(m.month + '-15T12:00:00Z').toLocaleDateString('en-CA', { month: 'long', timeZone: 'UTC' }) %> <span class="muted"><%= m.currency %></span></td><td class="num"><%= u.formatMoney(m.invoiced, m.currency) %></td><td class="num"><%= u.formatMoney(m.collected, m.currency) %></td></tr>
+      <% } %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+</div>
+
+<div class="card">
+  <h2>Export</h2>
+  <p>
+    <a class="btn" href="/reports/<%= year %>/invoices.csv">Invoices <%= year %> (CSV)</a>
+    <a class="btn" href="/reports/<%= year %>/payments.csv">Payments <%= year %> (CSV)</a>
+  </p>
+</div>
+<%- include('partials/foot') %>

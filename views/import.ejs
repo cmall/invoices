@@ -1,0 +1,28 @@
+<%- include('partials/head') %>
+<div class="page-head"><h1>Import from Harvest</h1></div>
+<% if (result) { %>
+  <div class="card notice">
+    <h2>Import finished</h2>
+    <p>Imported <%= result.clients %> clients, <%= result.projects %> projects, <%= result.invoices %> invoices (<%= result.payments %> payments) and <%= result.estimates %> estimates. Skipped <%= result.skipped %> already-imported records.</p>
+    <% if (result.warnings.length) { %><ul><% for (const w of result.warnings) { %><li><%= w %></li><% } %></ul><% } %>
+    <p><a class="btn primary" href="/invoices">View invoices</a> <a class="btn" href="/settings#taxes">Set up tax rates</a></p>
+  </div>
+<% } %>
+<% if (error) { %><div class="flash err"><%= error %></div><% } %>
+<div class="card">
+  <p>This copies your clients, contacts, projects (with hourly rates), invoices (with line items and payments) and estimates from Harvest. Running it again skips anything already imported, so it's safe to repeat.</p>
+  <ol>
+    <li>In Harvest, go to <a href="https://id.getharvest.com/developers" target="_blank" rel="noopener">id.getharvest.com/developers</a> and create a <strong>Personal Access Token</strong>.</li>
+    <li>Copy the token and your <strong>Account ID</strong> into the form below. Neither is stored.</li>
+  </ol>
+  <form method="post" action="/import" class="form-grid">
+    <%- include('partials/csrf') %>
+    <label>Personal access token <input name="token" required autocomplete="off"></label>
+    <label>Account ID <input name="account_id" required inputmode="numeric"></label>
+    <label>Name for Harvest's "Tax" <span class="hint">e.g. GST or HST</span><input name="tax_name_1" value="Tax"></label>
+    <label>Name for Harvest's "Tax 2" <span class="hint">e.g. PST or QST</span><input name="tax_name_2" value="Tax 2"></label>
+    <label class="check span-2"><input type="checkbox" name="continue_numbering" value="1" checked> Continue Harvest's invoice numbering. This clears the invoice prefix and sets the next number after your last Harvest invoice.</label>
+    <div class="span-2"><button class="btn primary" data-busy="Importing…">Import</button></div>
+  </form>
+</div>
+<%- include('partials/foot') %>

@@ -1,0 +1,39 @@
+<%- include('head') %>
+<% const isInv = doc.kind === 'invoice'; const base = isInv ? 'i' : 'e'; %>
+<div class="public-bar">
+  <div>
+    <% if (isInv) { %>
+      <% if (doc.status === 'paid') { %><strong>Paid in full — thank you!</strong>
+      <% } else if (doc.status === 'void') { %><strong>This invoice has been voided.</strong>
+      <% } else { %><span class="muted">Amount due</span> <strong class="big"><%= u.formatMoney(doc.balance_cents, doc.currency) %></strong><% if (doc.due_date) { %> <span class="muted">by <%= u.formatDate(doc.due_date) %></span><% } %><% } %>
+    <% } else { %>
+      <% if (doc.status === 'accepted') { %><strong>Accepted — thank you!</strong>
+      <% } else if (doc.status === 'declined') { %><strong>This estimate was declined.</strong>
+      <% } else if (doc.status === 'invoiced') { %><strong>This estimate has been invoiced.</strong>
+      <% } else { %><span class="muted">Estimate total</span> <strong class="big"><%= u.formatMoney(doc.total_cents, doc.currency) %></strong><% } %>
+    <% } %>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/<%= base %>/<%= doc.public_token %>/pdf?download=1">Download PDF</a>
+    <% if (canPay) { %>
+      <form method="post" action="/i/<%= doc.public_token %>/pay"><button class="btn primary">Pay <%= u.formatMoney(doc.balance_cents, doc.currency) %> online</button></form>
+    <% } %>
+  </div>
+</div>
+
+<% if (!isInv && doc.status === 'sent') { %>
+  <div class="card accept-box">
+    <form method="post" action="/e/<%= doc.public_token %>/accept" class="inline-form">
+      <input name="name" placeholder="Your name" required>
+      <button class="btn primary">Accept estimate</button>
+    </form>
+    <form method="post" action="/e/<%= doc.public_token %>/decline" data-confirm="Decline this estimate?"><button class="link">Decline</button></form>
+  </div>
+<% } %>
+
+<%- include('../documents/preview', { doc }) %>
+<p class="center muted small">Questions? Contact <%= s.business_email ? s.business_email : s.business_name %>.</p>
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>

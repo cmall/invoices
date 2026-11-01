@@ -1,0 +1,27 @@
+<%- include('../partials/head') %>
+<div class="page-head">
+  <h1>Clients</h1>
+  <div class="actions">
+    <a class="btn" href="/clients<%= showArchived ? '' : '?archived=1' %>"><%= showArchived ? 'Show active' : 'Show archived' %></a>
+    <a class="btn primary" href="/clients/new">New client</a>
+  </div>
+</div>
+<% if (!clients.length) { %>
+  <div class="card empty"><p><%= showArchived ? 'No archived clients.' : 'No clients yet.' %></p><% if (!showArchived) { %><a class="btn primary" href="/clients/new">Add your first client</a><% } %></div>
+<% } else { %>
+<table class="table">
+  <thead><tr><th>Name</th><th>Contact</th><th>Currency</th><th class="num">Invoices</th><th class="num">Outstanding</th></tr></thead>
+  <tbody>
+  <% for (const c of clients) { %>
+    <tr>
+      <td><a href="/clients/<%= c.id %>"><strong><%= c.name %></strong></a></td>
+      <td><%= c.contact_name %><% if (c.email) { %> <span class="muted"><%= c.email %></span><% } %></td>
+      <td><%= c.currency %></td>
+      <td class="num"><%= c.invoice_count %></td>
+      <td class="num"><%= c.balance_cents ? u.formatMoney(c.balance_cents, c.currency) : '—' %></td>
+    </tr>
+  <% } %>
+  </tbody>
+</table>
+<% } %>
+<%- include('../partials/foot') %>

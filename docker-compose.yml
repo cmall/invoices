@@ -1,0 +1,14 @@
+# docker compose up -d   (run "docker compose run --rm app npm run setup" first to create .env)
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOST: 0.0.0.0
+      DATA_DIR: /data
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./data:/data
+      - ./.env:/app/.env

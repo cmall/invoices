@@ -1,0 +1,65 @@
+<%- include('../partials/head') %>
+<% const taxIds = JSON.parse(client.default_tax_ids || '[]').map(Number); %>
+<div class="page-head">
+  <div>
+    <h1><%= client.name %> <% if (client.archived) { %><span class="badge">archived</span><% } %></h1>
+  </div>
+  <div class="actions">
+    <a class="btn" href="/clients/<%= client.id %>/edit">Edit</a>
+    <a class="btn" href="/estimates/new?client_id=<%= client.id %>">New estimate</a>
+    <a class="btn primary" href="/invoices/new?client_id=<%= client.id %>">New invoice</a>
+  </div>
+</div>
+
+<div class="two-col">
+  <div class="card">
+    <dl class="dl">
+      <dt>Contact</dt><dd><%= client.contact_name || '—' %></dd>
+      <dt>Email</dt><dd><%= client.email || '—' %><% if (client.cc_emails) { %><br><span class="muted">cc <%= client.cc_emails %></span><% } %></dd>
+      <dt>Address</dt><dd class="pre"><%= client.address || '—' %></dd>
+      <dt>Currency</dt><dd><%= client.currency %></dd>
+      <dt>Terms</dt><dd><%= client.payment_terms_days ?? s.payment_terms_days %> days</dd>
+      <dt>Taxes</dt><dd><%= taxRates.filter(t => taxIds.includes(t.id)).map(t => `${t.name} ${u.formatRate(t.rate)}`).join(', ') || 'None' %></dd>
+      <% if (client.notes) { %><dt>Notes</dt><dd class="pre"><%= client.notes %></dd><% } %>
+    </dl>
+  </div>
+  <div class="card" id="projects">
+    <h2>Projects &amp; rates</h2>
+    <% if (!projects.length) { %><p class="muted">No projects yet. Projects let you pick a rate when adding invoice lines.</p><% } else { %>
+    <table class="table compact">
+      <tbody>
+      <% for (const p of projects) { %>
+        <tr class="<%= p.archived ? 'dim' : '' %>">
+          <td><%= p.name %><% if (p.code) { %> <span class="muted"><%= p.code %></span><% } %><% if (p.archived) { %> <span class="badge">archived</span><% } %></td>
+          <td class="num"><%= p.hourly_rate_cents != null ? `${u.formatMoney(p.hourly_rate_cents, client.currency)}/hr` : '—' %></td>
+          <td class="num"><a href="/projects/<%= p.id %>/edit">Edit</a></td>
+        </tr>
+      <% } %>
+      </tbody>
+    </table>
+    <% } %>
+    <form method="post" action="/clients/<%= client.id %>/projects" class="inline-form">
+      <%- include('../partials/csrf') %>
+      <input name="name" placeholder="Project name" required>
+      <input name="hourly_rate" placeholder="Rate / hr" inputmode="decimal" class="w-sm">
+      <button class="btn">Add project</button>
+    </form>
+  </div>
+</div>
+
+<section>
+  <h2>Invoices</h2>
+  <%- include('../documents/table', { docs: invoices, base: '/invoices', kind: 'invoice', showClient: false }) %>
+</section>
+<section>
+  <h2>Estimates</h2>
+  <%- include('../documents/table', { docs: estimates, base: '/estimates', kind: 'estimate', showClient: false }) %>
+</section>
+
+<div class="danger-zone">
+  <form method="post" action="/clients/<%= client.id %>/archive"><%- include('../partials/csrf') %><button class="btn small"><%= client.archived ? 'Restore client' : 'Archive client' %></button></form>
+  <% if (!invoices.length && !estimates.length) { %>
+  <form method="post" action="/clients/<%= client.id %>/delete" data-confirm="Delete this client permanently?"><%- include('../partials/csrf') %><button class="btn small danger">Delete client</button></form>
+  <% } %>
+</div>
+<%- include('../partials/foot') %>

@@ -1,0 +1,32 @@
+<%- include('../partials/head') %>
+<div class="page-head">
+  <h1><%= plural %></h1>
+  <div class="actions"><a class="btn primary" href="<%= base %>/new">New <%= label.toLowerCase() %></a></div>
+</div>
+<form method="get" class="filters">
+  <input type="search" name="q" value="<%= filters.q %>" placeholder="Search number, subject, client">
+  <select name="status">
+    <option value="">All statuses</option>
+    <% const statuses = kind === 'invoice' ? ['draft','outstanding','overdue','partial','paid','void'] : ['draft','sent','accepted','declined','invoiced']; %>
+    <% for (const st of statuses) { %><option value="<%= st %>" <%= filters.status === st ? 'selected' : '' %>><%= st %></option><% } %>
+  </select>
+  <select name="client_id">
+    <option value="">All clients</option>
+    <% for (const c of clients) { %><option value="<%= c.id %>" <%= Number(filters.client_id) === c.id ? 'selected' : '' %>><%= c.name %></option><% } %>
+  </select>
+  <select name="year">
+    <option value="">All years</option>
+    <% for (const y of years) { %><option <%= filters.year === y ? 'selected' : '' %>><%= y %></option><% } %>
+  </select>
+  <button class="btn">Filter</button>
+</form>
+<%- include('table', { docs, base, kind, showClient: true }) %>
+<% if (Object.keys(totals).length) { %>
+  <p class="muted totals-line">
+    <% for (const [cur, t] of Object.entries(totals)) { %>
+      <span><%= cur %>: <%= u.formatMoney(t.total, cur) %> total<% if (kind === 'invoice') { %>, <%= u.formatMoney(t.balance, cur) %> outstanding<% } %></span>
+    <% } %>
+    <span>(excluding drafts and voided)</span>
+  </p>
+<% } %>
+<%- include('../partials/foot') %>

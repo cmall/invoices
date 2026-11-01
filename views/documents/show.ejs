@@ -1,0 +1,141 @@
+<%- include('../partials/head') %>
+<% const isInv = kind === 'invoice'; const m = (c) => u.formatMoney(c, doc.currency); %>
+<div class="page-head">
+  <div>
+    <h1><%= label %> <%= doc.number %> <%- include('../partials/status', { status: doc.display_status }) %></h1>
+    <div class="muted"><a href="/clients/<%= doc.client_id %>"><%= doc.client_name %></a><%= doc.subject ? ` · ${doc.subject}` : '' %></div>
+  </div>
+  <div class="actions">
+    <% if (doc.status !== 'void' && doc.status !== 'invoiced') { %><a class="btn" href="<%= base %>/<%= doc.id %>/edit">Edit</a><% } %>
+    <a class="btn" href="<%= base %>/<%= doc.id %>/pdf" target="_blank">PDF</a>
+    <% if (doc.status !== 'void') { %>
+      <a class="btn primary" href="<%= base %>/<%= doc.id %>/send"><%= doc.status === 'draft' ? 'Send…' : 'Send again…' %></a>
+    <% } %>
+  </div>
+</div>
+
+<% if (doc.status === 'draft') { %>
+  <div class="card notice">This <%= label.toLowerCase() %> is a <strong>draft</strong>. Keep adding lines as you work, then send it when you're ready. Clients can't see drafts.</div>
+<% } %>
+<% if (doc.paid_cents && doc.status !== 'paid' && doc.status !== 'void' && doc.balance_cents < 0) { %>
+  <div class="card notice warn">Payments exceed the total by <%= m(-doc.balance_cents) %>.</div>
+<% } %>
+
+<div class="show-grid">
+  <div>
+    <%- include('preview', { doc }) %>
+
+    <% if (doc.is_editable) { %>
+    <div class="card" id="lines">
+      <h2>Add a line</h2>
+      <%- include('../partials/quickadd', { doc, base, projects, returnTo: 'document' }) %>
+      <% if (doc.lines.length) { %>
+      <details class="mt">
+        <summary>Remove a line</summary>
+        <table class="table compact">
+          <% for (const l of doc.lines) { %>
+            <tr>
+              <td><%= l.item_date ? u.formatDate(l.item_date) : '' %></td>
+              <td class="truncate"><%= l.description || l.kind %></td>
+              <td class="num"><%= m(l.amount_cents) %></td>
+              <td class="num"><form method="post" action="<%= base %>/<%= doc.id %>/lines/<%= l.id %>/delete"><%- include('../partials/csrf') %><button class="link danger">Remove</button></form></td>
+            </tr>
+          <% } %>
+        </table>
+      </details>
+      <% } %>
+    </div>
+    <% } %>
+  </div>
+
+  <aside>
+    <% if (doc.status !== 'draft') { %>
+    <div class="card">
+      <h3>Client link</h3>
+      <div class="copy-row">
+        <input readonly value="<%= publicLink %>" data-copy-source>
+        <button type="button" class="btn small" data-copy>Copy</button>
+      </div>
+      <p class="hint"><% if (doc.viewed_at) { %>First viewed <%= u.formatDateTime(doc.viewed_at) %><% } else { %>Not viewed yet<% } %></p>
+    </div>
+    <% } %>
+
+    <% if (isInv && doc.status !== 'void') { %>
+    <div class="card" id="payments">
+      <h3>Payments</h3>
+      <% if (!doc.payments.length) { %><p class="muted">No payments recorded.</p><% } %>
+      <% for (const p of doc.payments) { %>
+        <div class="payment">
+          <div>
+            <strong><%= m(p.amount_cents) %></strong> · <%= u.formatDate(p.paid_date) %><br>
+            <span class="muted"><%= paymentMethods[p.method] || p.method %><%= p.reference ? ` · ${p.reference}` : '' %></span>
+            <% if (p.notes) { %><div class="muted"><%= p.notes %></div><% } %>
+          </div>
+          <form method="post" action="<%= base %>/<%= doc.id %>/payments/<%= p.id %>/delete" data-confirm="Delete this payment?"><%- include('../partials/csrf') %><button class="link danger">Delete</button></form>
+        </div>
+      <% } %>
+      <% if (doc.balance_cents > 0) { %>
+      <details <%= doc.payments.length ? '' : '' %>>
+        <summary>Record a payment</summary>
+        <form method="post" action="<%= base %>/<%= doc.id %>/payments" class="stack">
+          <%- include('../partials/csrf') %>
+          <label>Amount <input name="amount" inputmode="decimal" value="<%= u.centsToInput(doc.balance_cents) %>" required></label>
+          <label>Date <input type="date" name="paid_date" value="<%= today %>"></label>
+          <label>Method
+            <select name="method">
+              <% for (const [k, v] of Object.entries(paymentMethods)) { if (k === 'stripe') continue; %><option value="<%= k %>"><%= v %></option><% } %>
+            </select>
+          </label>
+          <label>Reference <input name="reference" placeholder="Cheque #, transfer ID…"></label>
+          <button class="btn primary">Record payment</button>
+        </form>
+      </details>
+      <% } %>
+    </div>
+    <% } %>
+
+    <div class="card">
+      <h3>Actions</h3>
+      <div class="action-list">
+        <% if (doc.status === 'draft') { %>
+          <form method="post" action="<%= base %>/<%= doc.id %>/mark-sent"><%- include('../partials/csrf') %><button class="link">Mark as sent (without emailing)</button></form>
+        <% } %>
+        <% if (isInv && doc.is_overdue) { %>
+          <a href="<%= base %>/<%= doc.id %>/send?purpose=reminder">Send a payment reminder…</a>
+        <% } %>
+        <% if (!isInv && ['draft','sent','accepted','declined'].includes(doc.status)) { %>
+          <form method="post" action="<%= base %>/<%= doc.id %>/convert"><%- include('../partials/csrf') %><button class="link">Convert to invoice</button></form>
+          <% if (doc.status !== 'accepted') { %><form method="post" action="<%= base %>/<%= doc.id %>/mark-accepted"><%- include('../partials/csrf') %><button class="link">Mark as accepted</button></form><% } %>
+          <% if (doc.status !== 'declined') { %><form method="post" action="<%= base %>/<%= doc.id %>/mark-declined"><%- include('../partials/csrf') %><button class="link">Mark as declined</button></form><% } %>
+        <% } %>
+        <% if (!isInv && doc.converted_invoice_id) { %><a href="/invoices/<%= doc.converted_invoice_id %>">View invoice</a><% } %>
+        <% if (isInv && doc.source_estimate_id) { %><a href="/estimates/<%= doc.source_estimate_id %>">View original estimate</a><% } %>
+        <a href="<%= base %>/<%= doc.id %>/pdf?download=1">Download PDF</a>
+        <form method="post" action="<%= base %>/<%= doc.id %>/duplicate"><%- include('../partials/csrf') %><button class="link">Duplicate</button></form>
+        <% if (doc.status !== 'draft' && !doc.payments.length && doc.status !== 'invoiced') { %>
+          <form method="post" action="<%= base %>/<%= doc.id %>/revert-draft"><%- include('../partials/csrf') %><button class="link">Move back to draft</button></form>
+        <% } %>
+        <% if (isInv && doc.status !== 'void' && doc.status !== 'draft') { %>
+          <form method="post" action="<%= base %>/<%= doc.id %>/void" data-confirm="Void this invoice? It stays in your records but is no longer payable."><%- include('../partials/csrf') %><button class="link danger">Void invoice</button></form>
+        <% } %>
+        <% if (!doc.payments.length) { %>
+          <form method="post" action="<%= base %>/<%= doc.id %>/delete" data-confirm="Delete <%= doc.number %> permanently?"><%- include('../partials/csrf') %><button class="link danger">Delete</button></form>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>History</h3>
+      <ul class="activity">
+        <% for (const a of doc.activity) { %><li><span><%= a.message %></span><time><%= u.formatDateTime(a.created_at) %></time></li><% } %>
+      </ul>
+      <% const failed = doc.emails.filter(e => e.error); if (failed.length) { %>
+        <h4>Email errors</h4>
+        <ul class="activity">
+          <% for (const e of failed) { %><li class="error"><span><%= e.error %></span><time><%= u.formatDateTime(e.created_at) %></time></li><% } %>
+        </ul>
+      <% } %>
+    </div>
+  </aside>
+</div>
+<%- include('../partials/foot') %>

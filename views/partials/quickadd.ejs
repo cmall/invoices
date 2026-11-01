@@ -1,0 +1,18 @@
+<%# Quick "add a line" form. Locals: doc, base, projects, returnTo %>
+<form method="post" action="<%= base %>/<%= doc.id %>/lines" class="quickadd" data-quickadd>
+  <%- include('csrf') %>
+  <input type="hidden" name="return_to" value="<%= returnTo %>">
+  <label class="qa-date">Date <input type="date" name="item_date" value="<%= u.today() %>"></label>
+  <label class="qa-project">Project
+    <select name="project_id" data-project-select>
+      <option value="">—</option>
+      <% for (const p of projects.filter(p => p.client_id === doc.client_id)) { %>
+        <option value="<%= p.id %>" data-rate="<%= u.centsToInput(p.hourly_rate_cents) %>"><%= p.name %></option>
+      <% } %>
+    </select>
+  </label>
+  <label class="qa-desc">Description <input name="description" placeholder="What did you do?"></label>
+  <label class="qa-qty">Hours/Qty <input name="quantity" inputmode="decimal" value="1"></label>
+  <label class="qa-rate">Rate <input name="unit_price" inputmode="decimal" placeholder="0.00" data-rate-input></label>
+  <button class="btn">Add line</button>
+</form>

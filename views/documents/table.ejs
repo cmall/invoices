@@ -1,0 +1,24 @@
+<%# Locals: docs, base, kind, showClient %>
+<% if (!docs.length) { %><p class="muted">None yet.</p><% } else { %>
+<table class="table">
+  <thead><tr>
+    <th>Number</th><% if (showClient) { %><th>Client</th><% } %><th>Subject</th><th>Issued</th>
+    <th><%= kind === 'invoice' ? 'Due' : 'Valid until' %></th><th>Status</th>
+    <th class="num">Total</th><% if (kind === 'invoice') { %><th class="num">Balance</th><% } %>
+  </tr></thead>
+  <tbody>
+  <% for (const d of docs) { %>
+    <tr class="<%= d.status === 'void' ? 'dim' : '' %>">
+      <td><a href="<%= base %>/<%= d.id %>"><strong><%= d.number %></strong></a></td>
+      <% if (showClient) { %><td><%= d.client_name %></td><% } %>
+      <td class="truncate"><%= d.subject %></td>
+      <td><%= u.formatDate(d.issue_date) %></td>
+      <td><%= u.formatDate(d.due_date) %></td>
+      <td><%- include('../partials/status', { status: d.display_status }) %></td>
+      <td class="num"><%= u.formatMoney(d.total_cents, d.currency) %></td>
+      <% if (kind === 'invoice') { %><td class="num"><%= d.status === 'void' ? '—' : u.formatMoney(d.balance_cents, d.currency) %></td><% } %>
+    </tr>
+  <% } %>
+  </tbody>
+</table>
+<% } %>

@@ -1,0 +1,32 @@
+<%- include('../partials/head') %>
+<% const taxIds = JSON.parse(client.default_tax_ids || '[]').map(Number); %>
+<div class="page-head"><h1><%= title %></h1></div>
+<form method="post" action="<%= client.id ? `/clients/${client.id}` : '/clients' %>" class="card form-grid">
+  <%- include('../partials/csrf') %>
+  <label class="span-2">Client / company name <input name="name" value="<%= client.name || '' %>" required autofocus></label>
+  <label>Contact name <input name="contact_name" value="<%= client.contact_name || '' %>"></label>
+  <label>Email (invoices are sent here) <input type="email" name="email" value="<%= client.email || '' %>"></label>
+  <label class="span-2">CC emails <span class="hint">comma-separated, optional</span><input name="cc_emails" value="<%= client.cc_emails || '' %>"></label>
+  <label class="span-2">Address <textarea name="address" rows="4"><%= client.address || '' %></textarea></label>
+  <label>Currency
+    <select name="currency">
+      <% for (const c of currencies) { %><option <%= c === client.currency ? 'selected' : '' %>><%= c %></option><% } %>
+    </select>
+  </label>
+  <label>Payment terms (days) <span class="hint">blank = default (<%= s.payment_terms_days %>)</span>
+    <input type="number" min="0" name="payment_terms_days" value="<%= client.payment_terms_days ?? '' %>">
+  </label>
+  <fieldset class="span-2">
+    <legend>Default taxes for new invoices</legend>
+    <% if (!taxRates.length) { %><p class="muted">No tax rates yet. <a href="/settings#taxes">Add them in Settings</a>.</p><% } %>
+    <% for (const t of taxRates) { %>
+      <label class="check"><input type="checkbox" name="default_tax_ids" value="<%= t.id %>" <%= taxIds.includes(t.id) ? 'checked' : '' %>> <%= t.name %> (<%= u.formatRate(t.rate) %>)</label>
+    <% } %>
+  </fieldset>
+  <label class="span-2">Private notes <span class="hint">never shown to the client</span><textarea name="notes" rows="3"><%= client.notes || '' %></textarea></label>
+  <div class="span-2 actions">
+    <button class="btn primary">Save client</button>
+    <a class="btn" href="<%= client.id ? `/clients/${client.id}` : '/clients' %>">Cancel</a>
+  </div>
+</form>
+<%- include('../partials/foot') %>

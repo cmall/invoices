@@ -1,0 +1,15 @@
+<%- include('head') %>
+<div class="card center thanks">
+  <% if (pending) { %>
+    <h1>Payment processing</h1>
+    <p>Your payment is being processed. You'll receive a receipt by email once it completes.</p>
+  <% } else { %>
+    <h1>Thank you!</h1>
+    <p><% if (amount) { %>Your payment of <strong><%= amount %></strong> for invoice <%= doc.number %> was received.<% } else { %>Thank you for your payment for invoice <%= doc.number %>.<% } %></p>
+    <% if (doc.balance_cents > 0 && amount) { %><p class="muted">Remaining balance: <%= u.formatMoney(doc.balance_cents, doc.currency) %></p><% } %>
+  <% } %>
+  <p><a class="btn" href="/i/<%= doc.public_token %>">View invoice</a></p>
+</div>
+</main>
+</body>
+</html>

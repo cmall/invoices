@@ -1,0 +1,84 @@
+<%- include('../partials/head') %>
+<%
+  const json = (v) => JSON.stringify(v).replace(/</g, '\\u003c');
+  const initialLines = doc.lines.map(l => ({
+    item_date: l.item_date || '', project_id: l.project_id || '', kind: l.kind, description: l.description,
+    quantity: l.quantity, unit_price: u.centsToInput(l.unit_price_cents), taxable: !!l.taxable,
+  }));
+  const initialTaxes = doc.taxes.map(t => ({ tax_rate_id: t.tax_rate_id, name: t.name, rate: t.rate, reg_number: t.reg_number, fixed_amount_cents: t.fixed_amount_cents }));
+%>
+<div class="page-head">
+  <h1><%= title %></h1>
+  <div class="actions"><a class="btn" href="<%= base %>/<%= doc.id %>">Cancel</a></div>
+</div>
+
+<form method="post" action="<%= base %>/<%= doc.id %>" id="doc-form" data-doc-editor>
+  <%- include('../partials/csrf') %>
+  <input type="hidden" name="lines_json">
+  <input type="hidden" name="taxes_json">
+  <script type="application/json" id="editor-data"><%- json({ lines: initialLines, taxes: initialTaxes, projects: projects.map(p => ({ id: p.id, client_id: p.client_id, name: p.name, rate: u.centsToInput(p.hourly_rate_cents) })), taxRates: taxRates.map(t => ({ id: t.id, name: t.name, rate: t.rate, reg_number: t.reg_number })), clients: clients.map(c => ({ id: c.id, currency: c.currency })) }) %></script>
+
+  <div class="card form-grid cols-4">
+    <label class="span-2">Client
+      <select name="client_id" data-client-select>
+        <% for (const c of clients) { %><option value="<%= c.id %>" <%= c.id === doc.client_id ? 'selected' : '' %>><%= c.name %></option><% } %>
+      </select>
+    </label>
+    <label><%= label %> number <input name="number" value="<%= doc.number %>" required></label>
+    <label>Currency
+      <select name="currency" data-currency>
+        <% for (const c of currencies) { %><option <%= c === doc.currency ? 'selected' : '' %>><%= c %></option><% } %>
+      </select>
+    </label>
+    <label>Issue date <input type="date" name="issue_date" value="<%= doc.issue_date %>" required></label>
+    <label><%= kind === 'invoice' ? 'Due date' : 'Valid until' %> <input type="date" name="due_date" value="<%= doc.due_date || '' %>"></label>
+    <label>PO number <input name="po_number" value="<%= doc.po_number %>"></label>
+    <label>Discount % <input name="discount_percent" inputmode="decimal" value="<%= doc.discount_percent || '' %>" data-discount></label>
+    <label class="span-4">Subject <input name="subject" value="<%= doc.subject %>"></label>
+  </div>
+
+  <div class="card">
+    <h2>Line items</h2>
+    <div class="lines-wrap">
+      <table class="lines" data-lines>
+        <thead><tr>
+          <th class="c-date">Date</th><th class="c-project">Project</th><th class="c-kind">Type</th><th>Description</th>
+          <th class="c-qty num">Qty</th><th class="c-price num">Rate</th><th class="c-tax" title="Taxable">Tax</th><th class="c-amount num">Amount</th><th class="c-actions"></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <button type="button" class="btn" data-add-line>+ Add line</button>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <h2>Taxes</h2>
+      <p class="hint">Taxes apply to the lines marked taxable, after any discount.</p>
+      <table class="lines taxes" data-taxes><tbody></tbody></table>
+      <div class="inline-form">
+        <select data-add-tax-select>
+          <option value="">Add a tax…</option>
+          <% for (const t of taxRates) { %><option value="<%= t.id %>"><%= t.name %> (<%= u.formatRate(t.rate) %>)</option><% } %>
+          <option value="custom">Custom tax…</option>
+        </select>
+      </div>
+      <% if (!taxRates.length) { %><p class="hint">Save frequently used rates (GST, HST, VAT…) in <a href="/settings#taxes">Settings</a>.</p><% } %>
+    </div>
+    <div class="card totals-card">
+      <dl class="totals" data-totals></dl>
+    </div>
+  </div>
+
+  <div class="card form-grid">
+    <label class="span-2">Notes <span class="hint">shown on the <%= label.toLowerCase() %></span><textarea name="notes" rows="3"><%= doc.notes %></textarea></label>
+    <label class="span-2">Terms <span class="hint">shown at the bottom, e.g. late payment terms</span><textarea name="terms" rows="2"><%= doc.terms %></textarea></label>
+  </div>
+
+  <div class="sticky-actions">
+    <button class="btn primary" name="after" value="view">Save</button>
+    <button class="btn" name="after" value="send">Save and send…</button>
+    <a class="btn" href="<%= base %>/<%= doc.id %>">Cancel</a>
+  </div>
+</form>
+<%- include('../partials/foot') %>

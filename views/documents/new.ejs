@@ -1,0 +1,18 @@
+<%- include('../partials/head') %>
+<div class="page-head"><h1><%= title %></h1></div>
+<% if (!clients.length) { %>
+  <div class="card empty"><p>Add a client first.</p><a class="btn primary" href="/clients/new">New client</a></div>
+<% } else { %>
+<form method="post" action="<%= base %>" class="card form-grid narrow-form">
+  <%- include('../partials/csrf') %>
+  <label class="span-2">Client
+    <select name="client_id" required autofocus>
+      <option value="">Choose a client…</option>
+      <% for (const c of clients) { %><option value="<%= c.id %>" <%= c.id === clientId ? 'selected' : '' %>><%= c.name %> (<%= c.currency %>)</option><% } %>
+    </select>
+  </label>
+  <label class="span-2">Subject <span class="hint">optional, e.g. "Website redesign – phase 2"</span><input name="subject"></label>
+  <div class="span-2 actions"><button class="btn primary">Create <%= label.toLowerCase() %></button></div>
+</form>
+<% } %>
+<%- include('../partials/foot') %>

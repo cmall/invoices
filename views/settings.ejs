@@ -1,0 +1,234 @@
+<%- include('partials/head') %>
+<div class="page-head"><h1>Settings</h1></div>
+
+<nav class="subnav">
+  <a href="#business">Business</a><a href="#branding">Branding</a><a href="#taxes">Taxes</a><a href="#invoicing">Invoicing</a>
+  <a href="#email">Email</a><a href="#payments">Online payments</a><a href="#reminders">Reminders</a><a href="#templates">Email templates</a><a href="#data">Data</a>
+</nav>
+
+<form method="post" action="/settings" class="card form-grid" id="business">
+  <%- include('partials/csrf') %><input type="hidden" name="_section" value="business">
+  <h2 class="span-2">Business details</h2>
+  <p class="hint span-2">Shown on every invoice, estimate and email.</p>
+  <label>Business name <input name="business_name" value="<%= s.business_name %>"></label>
+  <label>Email <input type="email" name="business_email" value="<%= s.business_email %>"></label>
+  <label>Phone <input name="business_phone" value="<%= s.business_phone %>"></label>
+  <label>Website <input name="business_website" value="<%= s.business_website %>"></label>
+  <label class="span-2">Address <textarea name="business_address" rows="4"><%= s.business_address %></textarea></label>
+  <div class="span-2"><button class="btn primary">Save</button></div>
+</form>
+
+<div class="card" id="branding">
+  <h2>Branding</h2>
+  <p class="hint">Your logo and colours appear on invoices, PDFs, the client payment page, emails and this app.</p>
+  <div class="branding" data-branding>
+    <div class="branding-controls">
+      <div class="field-title">Logo</div>
+      <div class="logo-box">
+        <div class="logo-frame">
+          <% if (s.logo_file) { %><img src="/logo?v=<%= s.logo_file %>" alt="Logo"><% } else { %><span class="muted">No logo yet</span><% } %>
+        </div>
+        <div class="logo-actions">
+          <form method="post" action="/settings/logo" enctype="multipart/form-data" data-logo-form>
+            <%- include('partials/csrf') %>
+            <label class="btn file-btn"><%= s.logo_file ? 'Replace logo' : 'Upload logo' %>
+              <input type="file" name="logo" accept="image/png,image/jpeg" required data-autosubmit>
+            </label>
+          </form>
+          <% if (s.logo_file) { %>
+            <form method="post" action="/settings/logo/delete"><%- include('partials/csrf') %><button class="link danger">Remove</button></form>
+          <% } %>
+        </div>
+      </div>
+      <p class="hint">PNG (transparent background works best) or JPEG, up to 2 MB.</p>
+
+      <form method="post" action="/settings" class="stack mt">
+        <%- include('partials/csrf') %><input type="hidden" name="_section" value="branding">
+        <div>
+          <div class="field-title">Colour themes</div>
+          <div class="swatches">
+            <% for (const [name, a, h] of [['Ocean','#2f5d8a','#1e3a5f'],['Teal','#0f766e','#134e4a'],['Forest','#2f7a4f','#1f4d33'],['Plum','#6d3f8c','#43265a'],['Rose','#be185d','#831843'],['Ember','#c2410c','#7c2d12'],['Gold','#a16207','#5c3a0a'],['Graphite','#374151','#111827']]) { %>
+              <button type="button" class="swatch" data-accent="<%= a %>" data-heading="<%= h %>" title="<%= name %>">
+                <span style="background:<%= h %>"></span><span style="background:<%= a %>"></span><em><%= name %></em>
+              </button>
+            <% } %>
+          </div>
+        </div>
+        <div class="color-row">
+          <label>Accent colour <span class="hint">buttons, lines, balance due</span>
+            <span class="color-input"><input type="color" name="accent_color" value="<%= s.accent_color %>" data-color="accent"><input value="<%= s.accent_color %>" data-hex="accent" maxlength="7" aria-label="Accent hex"></span>
+          </label>
+          <label>Heading colour <span class="hint">title and business name</span>
+            <span class="color-input"><input type="color" name="heading_color" value="<%= s.heading_color %>" data-color="heading"><input value="<%= s.heading_color %>" data-hex="heading" maxlength="7" aria-label="Heading hex"></span>
+          </label>
+        </div>
+        <div>
+          <div class="field-title">Invoice typeface</div>
+          <div class="segmented">
+            <label><input type="radio" name="invoice_font" value="modern" <%= s.invoice_font !== 'classic' ? 'checked' : '' %>><span class="seg-modern">Modern</span></label>
+            <label><input type="radio" name="invoice_font" value="classic" <%= s.invoice_font === 'classic' ? 'checked' : '' %>><span class="seg-classic">Classic</span></label>
+          </div>
+        </div>
+        <div class="color-row">
+          <div>
+            <div class="field-title">Logo size</div>
+            <div class="segmented">
+              <% for (const sz of ['small','medium','large']) { %>
+                <label><input type="radio" name="logo_size" value="<%= sz %>" <%= (s.logo_size || 'medium') === sz ? 'checked' : '' %>><span><%= sz[0].toUpperCase() + sz.slice(1) %></span></label>
+              <% } %>
+            </div>
+          </div>
+          <label>Paper size
+            <select name="paper_size">
+              <option value="LETTER" <%= s.paper_size !== 'A4' ? 'selected' : '' %>>US Letter</option>
+              <option value="A4" <%= s.paper_size === 'A4' ? 'selected' : '' %>>A4</option>
+            </select>
+          </label>
+        </div>
+        <div class="actions"><button class="btn primary">Save branding</button></div>
+      </form>
+    </div>
+
+    <div class="branding-preview" aria-hidden="true">
+      <div class="mini-paper font-<%= s.invoice_font === 'classic' ? 'classic' : 'modern' %> logo-<%= s.logo_size || 'medium' %>" data-preview style="--accent:<%= s.accent_color %>;--heading:<%= s.heading_color %>">
+        <div class="mini-head">
+          <% if (s.logo_file) { %><img src="/logo?v=<%= s.logo_file %>" alt="" class="mini-logo"><% } else { %><div class="mini-name"><%= s.business_name || 'Your Business' %></div><% } %>
+          <div class="mini-from"><%= s.business_name || 'Your Business' %><br>123 Main Street<br>hello@example.com</div>
+        </div>
+        <div class="mini-title">INVOICE</div>
+        <div class="mini-meta"><div><b>Bill to</b><br>Client Co.</div><div>Invoice INV-1001<br>Due Dec 1</div></div>
+        <div class="mini-table">
+          <div class="mini-th"><span>Description</span><span>Amount</span></div>
+          <div class="mini-tr"><span>Design work</span><span>$1,200.00</span></div>
+          <div class="mini-tr"><span>Development</span><span>$2,400.00</span></div>
+        </div>
+        <div class="mini-totals">
+          <div><span>Subtotal</span><span>$3,600.00</span></div>
+          <div><span>HST (13%)</span><span>$468.00</span></div>
+          <div class="mini-due"><span>Balance due</span><span>$4,068.00</span></div>
+        </div>
+        <div class="mini-btn">Pay online</div>
+      </div>
+      <p class="hint center">Live preview</p>
+    </div>
+  </div>
+</div>
+
+<div class="card" id="taxes">
+  <h2>Tax rates</h2>
+  <p class="hint">Add each tax you charge, for example GST 5%, HST 13%, PST 7% or VAT 20%. The registration number prints next to the tax on invoices. Pick default taxes per client on the client's page. Changing a rate here never changes invoices you've already created.</p>
+  <table class="table compact">
+    <thead><tr><th>Name</th><th>Rate %</th><th>Registration number</th><th></th></tr></thead>
+    <tbody>
+    <% for (const t of taxRates) { %>
+      <tr class="<%= t.archived ? 'dim' : '' %>">
+        <td colspan="3">
+          <form method="post" action="/settings/taxes/<%= t.id %>" class="inline-form tight">
+            <%- include('partials/csrf') %>
+            <input name="name" value="<%= t.name %>" required class="w-md">
+            <input name="rate" value="<%= t.rate %>" inputmode="decimal" required class="w-sm">
+            <input name="reg_number" value="<%= t.reg_number %>" placeholder="e.g. 123456789 RT0001">
+            <button class="btn small">Save</button>
+          </form>
+        </td>
+        <td class="num">
+          <form method="post" action="/settings/taxes/<%= t.id %>/archive"><%- include('partials/csrf') %><button class="link"><%= t.archived ? 'Restore' : 'Archive' %></button></form>
+        </td>
+      </tr>
+    <% } %>
+    </tbody>
+  </table>
+  <form method="post" action="/settings/taxes" class="inline-form mt">
+    <%- include('partials/csrf') %>
+    <input name="name" placeholder="Name (e.g. GST)" required class="w-md">
+    <input name="rate" placeholder="Rate %" inputmode="decimal" required class="w-sm">
+    <input name="reg_number" placeholder="Registration number (optional)">
+    <button class="btn primary">Add tax rate</button>
+  </form>
+</div>
+
+<form method="post" action="/settings" class="card form-grid" id="invoicing">
+  <%- include('partials/csrf') %><input type="hidden" name="_section" value="invoicing">
+  <input type="hidden" name="_checkboxes" value="">
+  <h2 class="span-2">Invoicing defaults</h2>
+  <label>Default currency (new clients)
+    <select name="default_currency"><% for (const c of currencies) { %><option <%= c === s.default_currency ? 'selected' : '' %>><%= c %></option><% } %></select>
+  </label>
+  <label>Payment terms (days) <input type="number" min="0" name="payment_terms_days" value="<%= s.payment_terms_days %>"></label>
+  <label>Invoice prefix <input name="invoice_prefix" value="<%= s.invoice_prefix %>"></label>
+  <label>Next invoice number <span class="hint">next: <%= nextInvoice %></span><input type="number" min="1" name="invoice_next_number" value="<%= s.invoice_next_number %>"></label>
+  <label>Estimate prefix <input name="estimate_prefix" value="<%= s.estimate_prefix %>"></label>
+  <label>Next estimate number <span class="hint">next: <%= nextEstimate %></span><input type="number" min="1" name="estimate_next_number" value="<%= s.estimate_next_number %>"></label>
+  <label>Zero-pad numbers to <span class="hint">digits, 0 = off</span><input type="number" min="0" max="10" name="number_padding" value="<%= s.number_padding %>"></label>
+  <label>Estimates valid for (days) <input type="number" min="0" name="estimate_valid_days" value="<%= s.estimate_valid_days %>"></label>
+  <label class="span-2">Default invoice notes <textarea name="default_invoice_notes" rows="2"><%= s.default_invoice_notes %></textarea></label>
+  <label class="span-2">Default invoice terms <textarea name="default_invoice_terms" rows="2"><%= s.default_invoice_terms %></textarea></label>
+  <label class="span-2">Default estimate notes <textarea name="default_estimate_notes" rows="2"><%= s.default_estimate_notes %></textarea></label>
+  <label class="span-2">Payment instructions <span class="hint">e.g. e-transfer or bank details; shown on unpaid invoices</span><textarea name="payment_instructions" rows="3"><%= s.payment_instructions %></textarea></label>
+  <div class="span-2"><button class="btn primary">Save</button></div>
+</form>
+
+<form method="post" action="/settings" class="card form-grid" id="email">
+  <%- include('partials/csrf') %><input type="hidden" name="_section" value="email">
+  <input type="hidden" name="_checkboxes" value="bcc_self,notify_on_payment">
+  <h2 class="span-2">Email (Postmark)</h2>
+  <p class="span-2">
+    Postmark API token: <%- config.postmark ? '<span class="badge badge-paid">set</span>' : '<span class="badge badge-overdue">missing</span> add <code>POSTMARK_SERVER_TOKEN</code> to <code>.env</code>' %>
+  </p>
+  <label>From email <span class="hint">must be a verified sender or domain in Postmark</span><input type="email" name="from_email" value="<%= s.from_email %>"></label>
+  <label>From name <input name="from_name" value="<%= s.from_name %>" placeholder="<%= s.business_name %>"></label>
+  <label class="check span-2"><input type="checkbox" name="bcc_self" value="1" <%= s.bcc_self === '1' ? 'checked' : '' %>> BCC me on emails sent to clients</label>
+  <label class="check span-2"><input type="checkbox" name="notify_on_payment" value="1" <%= s.notify_on_payment === '1' ? 'checked' : '' %>> Email me when a client pays online or responds to an estimate</label>
+  <div class="span-2 actions">
+    <button class="btn primary">Save</button>
+    <button class="btn" formaction="/settings/test-email">Send test email</button>
+  </div>
+</form>
+
+<form method="post" action="/settings" class="card form-grid" id="payments">
+  <%- include('partials/csrf') %><input type="hidden" name="_section" value="payments">
+  <input type="hidden" name="_checkboxes" value="stripe_enabled">
+  <h2 class="span-2">Online payments (Stripe)</h2>
+  <p class="span-2">
+    Stripe secret key: <%- config.stripe ? '<span class="badge badge-paid">set</span>' : '<span class="badge badge-overdue">missing</span> add <code>STRIPE_SECRET_KEY</code> to <code>.env</code>' %><br>
+    Webhook secret: <%- config.stripeWebhook ? '<span class="badge badge-paid">set</span>' : '<span class="badge badge-overdue">missing</span> add <code>STRIPE_WEBHOOK_SECRET</code> to <code>.env</code>' %>
+  </p>
+  <p class="hint span-2">In Stripe, go to Developers → Webhooks and add an endpoint at <code><%= webhookUrl %></code> for the events
+    <code>checkout.session.completed</code> and <code>checkout.session.async_payment_succeeded</code>. Payment methods offered come from your Stripe dashboard settings.</p>
+  <label class="check span-2"><input type="checkbox" name="stripe_enabled" value="1" <%= s.stripe_enabled === '1' ? 'checked' : '' %>> Show a "Pay online" button on invoices</label>
+  <div class="span-2"><button class="btn primary">Save</button></div>
+</form>
+
+<form method="post" action="/settings" class="card form-grid" id="reminders">
+  <%- include('partials/csrf') %><input type="hidden" name="_section" value="reminders">
+  <input type="hidden" name="_checkboxes" value="reminders_enabled">
+  <h2 class="span-2">Overdue reminders</h2>
+  <label class="check span-2"><input type="checkbox" name="reminders_enabled" value="1" <%= s.reminders_enabled === '1' ? 'checked' : '' %>> Automatically email reminders for overdue invoices</label>
+  <label class="span-2">Send reminders this many days after the due date <span class="hint">comma-separated</span>
+    <input name="reminder_days" value="<%= s.reminder_days %>">
+  </label>
+  <p class="hint span-2">Checked hourly. Each invoice gets at most one reminder per day, and one per value above (currently <%= schedule.join(', ') || 'none' %>).</p>
+  <div class="span-2 actions">
+    <button class="btn primary">Save</button>
+    <button class="btn" formaction="/settings/run-reminders">Check now</button>
+  </div>
+</form>
+
+<form method="post" action="/settings" class="card form-grid" id="templates">
+  <%- include('partials/csrf') %><input type="hidden" name="_section" value="templates">
+  <h2 class="span-2">Email templates</h2>
+  <p class="hint span-2">Placeholders: <code>{{business_name}}</code> <code>{{client_name}}</code> <code>{{contact_name}}</code> <code>{{number}}</code> <code>{{subject}}</code> <code>{{total}}</code> <code>{{amount_due}}</code> <code>{{due_date}}</code> <code>{{issue_date}}</code> <code>{{link}}</code>, and <code>{{payment_amount}}</code> in receipts.</p>
+  <% for (const [key, name] of [['invoice', 'New invoice'], ['estimate', 'New estimate'], ['reminder', 'Overdue reminder'], ['receipt', 'Payment receipt']]) { %>
+    <h3 class="span-2"><%= name %></h3>
+    <label class="span-2">Subject <input name="email_<%= key %>_subject" value="<%= s[`email_${key}_subject`] %>"></label>
+    <label class="span-2">Body <textarea name="email_<%= key %>_body" rows="8"><%= s[`email_${key}_body`] %></textarea></label>
+  <% } %>
+  <div class="span-2"><button class="btn primary">Save templates</button></div>
+</form>
+
+<div class="card" id="data">
+  <h2>Data</h2>
+  <p><a class="btn" href="/backup">Download a backup</a> <a class="btn" href="/import">Import from Harvest</a></p>
+  <p class="hint">Everything lives in one SQLite file on the server (<code>data/invoices.db</code>), along with your logo. Back up the <code>data</code> folder.</p>
+</div>
+<%- include('partials/foot') %>
