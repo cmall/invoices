@@ -4,7 +4,6 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const readline = require('readline');
 
 const envPath = path.join(__dirname, '..', '.env');
 const examplePath = path.join(__dirname, '..', '.env.example');
@@ -24,33 +23,96 @@ function hashPassword(password) {
   return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
 }
 
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-const ask = (q, def) => new Promise((res) => rl.question(def ? `${q} [${def}]: ` : `${q}: `, (a) => res(a.trim() || def || '')));
+// One stdin reader handles both normal answers and hidden password entry, so typed
+// or pasted input is never lost or sent to the wrong question.
+const stdin = process.stdin;
+const isTTY = Boolean(stdin.isTTY);
+let buffer = '';
+let closed = false;
+let waiter = null; // { hidden, resolve }
+let hiddenValue = '';
 
-function askHidden(q) {
-  return new Promise((resolve) => {
-    const stdin = process.stdin;
-    if (!stdin.isTTY) return rl.question(`${q}: `, (a) => resolve(a));
-    process.stdout.write(`${q}: `);
-    stdin.setRawMode(true);
-    let value = '';
-    const onData = (buf) => {
-      const ch = buf.toString('utf8');
+function pump() {
+  while (waiter) {
+    if (waiter.hidden) {
+      if (!buffer.length) return;
+      const ch = buffer[0];
+      buffer = buffer.slice(1);
       if (ch === '\r' || ch === '\n' || ch === '\u0004') {
         stdin.setRawMode(false);
-        stdin.removeListener('data', onData);
         process.stdout.write('\n');
-        resolve(value);
+        const w = waiter;
+        waiter = null;
+        w.resolve(hiddenValue);
+        // Drop the \n of a \r\n pair.
+        if (ch === '\r' && buffer[0] === '\n') buffer = buffer.slice(1);
       } else if (ch === '\u0003') {
+        process.stdout.write('\n');
         process.exit(1);
       } else if (ch === '\u007f' || ch === '\b') {
-        value = value.slice(0, -1);
+        hiddenValue = hiddenValue.slice(0, -1);
       } else {
-        value += ch;
+        hiddenValue += ch;
       }
-    };
-    stdin.on('data', onData);
+    } else {
+      const i = buffer.search(/\r?\n|\r/);
+      if (i === -1) {
+        if (!closed) return;
+        if (!buffer) {
+          const w = waiter;
+          waiter = null;
+          return w.resolve(null);
+        }
+        buffer += '\n';
+        continue;
+      }
+      const line = buffer.slice(0, i);
+      buffer = buffer.slice(i).replace(/^(\r\n|\n|\r)/, '');
+      const w = waiter;
+      waiter = null;
+      w.resolve(line);
+    }
+  }
+}
+
+stdin.setEncoding('utf8');
+stdin.on('data', (chunk) => {
+  buffer += chunk;
+  pump();
+});
+stdin.on('end', () => {
+  closed = true;
+  pump();
+});
+
+function readAnswer(hidden) {
+  return new Promise((resolve) => {
+    waiter = { hidden, resolve };
+    if (hidden) {
+      hiddenValue = '';
+      stdin.setRawMode(true);
+    }
+    pump();
   });
+}
+
+function endOfInput() {
+  console.error('\nSetup cancelled: no more input.');
+  process.exit(1);
+}
+
+async function ask(q, def) {
+  process.stdout.write(def ? `${q} [${def}]: ` : `${q}: `);
+  const a = await readAnswer(false);
+  if (a === null) endOfInput();
+  if (!isTTY) process.stdout.write('\n');
+  return a.trim() || def || '';
+}
+
+async function askHidden(q) {
+  if (!isTTY) return ask(q);
+  process.stdout.write(`${q}: `);
+  return readAnswer(true);
 }
 
 (async () => {
@@ -58,10 +120,22 @@ function askHidden(q) {
   const env = { ...parseEnv(fs.readFileSync(examplePath, 'utf8')), ...existing };
 
   console.log('\nInvoices setup. Press Enter to keep the value in [brackets].\n');
-  env.APP_URL = (await ask('Public URL of this app (e.g. https://invoices.example.com)', env.APP_URL)).replace(/\/$/, '');
+  // Suggestions come only from your existing .env, never from the example file.
+  for (;;) {
+    const url = (await ask('Public URL of this app (e.g. https://invoices.example.com)', existing.APP_URL)).replace(/\/+$/, '');
+    if (/^https?:\/\/[^\s/]+\.[^\s/]+/.test(url) || /^http:\/\/localhost(:\d+)?$/.test(url)) {
+      env.APP_URL = url;
+      break;
+    }
+    console.log('Enter the full address starting with https://, for example https://invoices.example.com');
+  }
   env.PORT = await ask('Port the app listens on', env.PORT || '3000');
-  env.TZ = await ask('Your time zone (IANA name)', env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone);
-  env.ADMIN_EMAIL = await ask('Admin login email', env.ADMIN_EMAIL);
+  env.TZ = await ask('Your time zone (IANA name, e.g. America/New_York)', existing.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone);
+  for (;;) {
+    env.ADMIN_EMAIL = await ask('Admin login email', existing.ADMIN_EMAIL);
+    if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(env.ADMIN_EMAIL)) break;
+    console.log('Enter a valid email address.');
+  }
 
   if (!env.ADMIN_PASSWORD_HASH || (await ask('Change the admin password? (y/N)', 'n')).toLowerCase().startsWith('y')) {
     let pw = '';
@@ -82,7 +156,7 @@ function askHidden(q) {
   console.log('\nStripe (for online card payments). Leave blank to set up later.');
   env.STRIPE_SECRET_KEY = await ask('Stripe secret key (sk_live_… or sk_test_…)', env.STRIPE_SECRET_KEY);
   env.STRIPE_WEBHOOK_SECRET = await ask('Stripe webhook signing secret (whsec_…)', env.STRIPE_WEBHOOK_SECRET);
-  rl.close();
+  stdin.pause();
 
   // Rewrite the example file's layout with our values, keeping its comments.
   const lines = fs.readFileSync(examplePath, 'utf8').split('\n').map((line) => {
