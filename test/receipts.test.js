@@ -164,3 +164,51 @@ test('online payments email a receipt automatically (and can be turned off)', as
   assert.match(receipt.Attachments[0].Name, /Receipt-INV-\d+-R4\.pdf/);
   assert.strictEqual(documents().getDocument(invId).status, 'paid');
 });
+
+// Characters drawn in a PDF: pdfkit writes text as hex strings inside (deflated) content streams.
+function drawnBytes(buf) {
+  const zlib = require('zlib');
+  const s = buf.toString('latin1');
+  const out = [];
+  const re = /stream\r?\n([\s\S]*?)\r?\nendstream/g;
+  let m;
+  while ((m = re.exec(s))) {
+    let content;
+    try {
+      content = zlib.inflateSync(Buffer.from(m[1], 'latin1')).toString('latin1');
+    } catch {
+      continue;
+    }
+    for (const h of content.match(/<([0-9a-fA-F]+)>/g) || []) {
+      // PDF readers pad an odd-length hex string with 0 (so "41d" reads as 0x41 0xD0, a stray "Ð").
+      const hex = h.slice(1, -1);
+      out.push(...Buffer.from(hex.length % 2 ? `${hex}0` : hex, 'hex'));
+    }
+  }
+  return out;
+}
+
+test('addresses typed with Windows line breaks print cleanly; website shown without https://', async () => {
+  const db = require('../src/db');
+  const { renderPdf, renderReceiptPdf } = require('../src/pdf');
+  require('../src/settings').setMany({ business_address: '3876 Pandora St\r\nBurnaby BC\r\nV5C 2A5', business_website: 'https://rosser.example/' });
+  const cid = Number(db.prepare('INSERT INTO clients (name, address, currency) VALUES (?, ?, ?)').run('Client', '724 Lorimer Road\r\nVictoria, BC\r\nV9B 6G3', 'CAD').lastInsertRowid);
+  const id = documents().createDocument('invoice', cid);
+  documents().replaceLines(id, [{ description: 'Work\r\nmore work', quantity: 1, unit_price_cents: 1000 }]);
+  documents().recalc(id);
+  documents().markSent(id);
+  documents().addPayment(id, { amount_cents: 1000, method: 'etransfer' });
+  const doc = documents().getDocument(id);
+  for (const buf of [await renderPdf(doc), await renderReceiptPdf(doc, doc.payments[0])]) {
+    const bytes = drawnBytes(buf);
+    assert.ok(bytes.length > 100, 'found drawn text');
+    assert.ok(!bytes.some((b) => b < 0x20 || b === 0xd0), 'no control characters or stray Ð drawn');
+  }
+  const html = await (await req('GET', `/invoices/${id}`)).text();
+  assert.match(html, /<div>rosser\.example<\/div>/);
+  assert.doesNotMatch(html, /https:\/\/rosser\.example/);
+
+  // New form input is normalised before it is saved.
+  await req('POST', '/clients', { name: 'Typed', address: 'Line 1\r\nLine 2', currency: 'CAD' });
+  assert.strictEqual(db.prepare("SELECT address FROM clients WHERE name = 'Typed'").get().address, 'Line 1\nLine 2');
+});

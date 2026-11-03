@@ -95,6 +95,21 @@ function fillTemplate(template, vars) {
   );
 }
 
+// Line breaks typed in a browser arrive as \r\n; keep plain \n and drop other control characters.
+function cleanText(s) {
+  return String(s ?? '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+}
+
+// "https://www.example.com/" -> "www.example.com" for display.
+function displayUrl(s) {
+  return String(s ?? '')
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/\/$/, '');
+}
+
 function escapeHtml(s) {
   return String(s ?? '')
     .replace(/&/g, '&amp;')
@@ -129,5 +144,7 @@ module.exports = {
   formatRate,
   fillTemplate,
   escapeHtml,
+  cleanText,
+  displayUrl,
   splitEmails,
 };
