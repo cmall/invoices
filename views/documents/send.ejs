@@ -1,29 +1,31 @@
 <%- include('../partials/head') %>
+<% const isReceipt = purpose === 'receipt';
+   const formAction = typeof action !== 'undefined' ? action : `${base}/${doc.id}/send`;
+   const previewHref = typeof pdfLink !== 'undefined' ? pdfLink : `${base}/${doc.id}/pdf`; %>
 <div class="page-head">
   <h1><%= purpose === 'reminder' ? `Send reminder for ${doc.number}` : title %></h1>
   <div class="actions"><a class="btn" href="<%= base %>/<%= doc.id %>">Cancel</a></div>
 </div>
 <% if (!emailReady) { %>
-  <div class="card notice warn">
-    Email isn't set up yet. Add <code>POSTMARK_SERVER_TOKEN</code> to <code>.env</code> and a From address in <a href="/settings#email">Settings</a>.
-    You can still <a href="<%= base %>/<%= doc.id %>/pdf?download=1">download the PDF</a> and mark the <%= label.toLowerCase() %> as sent.
+  <div class="card notice warn"><%- include('../partials/icon', { name: 'alert' }) %><div>Email isn't set up yet. Add <code>POSTMARK_SERVER_TOKEN</code> to <code>.env</code> and a From address in <a href="/settings#email">Settings</a>.
+    <% if (isReceipt) { %>You can still <a href="<%= previewHref %>?download=1">download the receipt</a> and send it yourself.<% } else { %>You can still <a href="<%= base %>/<%= doc.id %>/pdf?download=1">download the PDF</a> and mark the <%= label.toLowerCase() %> as sent.<% } %></div>
   </div>
 <% } %>
-<form method="post" action="<%= base %>/<%= doc.id %>/send" class="card form-grid">
+<form method="post" action="<%= formAction %>" class="card form-grid">
   <%- include('../partials/csrf') %>
   <input type="hidden" name="purpose" value="<%= purpose %>">
   <label>To <input name="to" value="<%= draft.to %>" required placeholder="client@example.com"></label>
   <label>CC <input name="cc" value="<%= draft.cc %>"></label>
   <label class="span-2">Subject <input name="subject" value="<%= draft.subject %>" required></label>
   <label class="span-2">Message <textarea name="body" rows="14"><%= draft.body %></textarea></label>
-  <label class="check span-2"><input type="checkbox" name="attach_pdf" value="1" checked> Attach PDF</label>
+  <label class="check span-2"><input type="checkbox" name="attach_pdf" value="1" checked> <%= typeof attachLabel !== 'undefined' ? attachLabel : 'Attach PDF' %></label>
   <p class="hint span-2">
-    The email includes a button linking to the online <%= label.toLowerCase() %><%= kind === 'invoice' && config.stripe && s.stripe_enabled === '1' ? ', where your client can pay by card' : '' %>.
+    The email includes a button linking to the online <%= label.toLowerCase() %><%= !isReceipt && kind === 'invoice' && config.stripe && s.stripe_enabled === '1' ? ', where your client can pay by card' : '' %>.
     <% if (s.bcc_self === '1') { %>A copy is sent to <%= s.business_email || s.from_email %>.<% } %>
   </p>
   <div class="span-2 actions">
-    <button class="btn primary" <%= emailReady ? '' : 'disabled' %>>Send email</button>
-    <a class="btn" href="<%= base %>/<%= doc.id %>/pdf" target="_blank">Preview PDF</a>
+    <button class="btn primary" <%= emailReady ? '' : 'disabled' %>><%- include('../partials/icon', { name: 'send' }) %> <%= isReceipt ? 'Send receipt' : 'Send email' %></button>
+    <a class="btn" href="<%= previewHref %>" target="_blank"><%= isReceipt ? 'Preview receipt' : 'Preview PDF' %></a>
   </div>
 </form>
 <%- include('../partials/foot') %>

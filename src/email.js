@@ -87,7 +87,8 @@ function fromHeader(s = settings.getAll()) {
 }
 
 // Sends an email about a document (invoice, estimate, reminder, receipt), logging the result.
-async function sendDocumentEmail(doc, { purpose, to, cc, subject, body, attachPdf = true }) {
+// attachments: optional [{ name, content: Buffer }] sent instead of the document PDF.
+async function sendDocumentEmail(doc, { purpose, to, cc, subject, body, attachPdf = true, attachments = null }) {
   // Name, From address, logo and colours of the business this document is from.
   const s = businesses.effective(doc.business_id);
   const toList = splitEmails(to);
@@ -98,7 +99,7 @@ async function sendDocumentEmail(doc, { purpose, to, cc, subject, body, attachPd
   const accent = /^#[0-9a-f]{6}$/i.test(s.accent_color) ? s.accent_color : '#2f5d8a';
   let buttonLabel = 'View invoice';
   if (doc.kind === 'estimate') buttonLabel = 'View estimate';
-  else if (doc.total_cents - doc.paid_cents > 0 && doc.status !== 'void' && config.stripeSecretKey && s.stripe_enabled === '1') {
+  else if (purpose !== 'receipt' && doc.total_cents - doc.paid_cents > 0 && doc.status !== 'void' && config.stripeSecretKey && s.stripe_enabled === '1') {
     buttonLabel = 'View and pay invoice';
   }
 
@@ -115,7 +116,9 @@ async function sendDocumentEmail(doc, { purpose, to, cc, subject, body, attachPd
   };
   if (ccList.length) message.Cc = ccList.join(', ');
   if (s.bcc_self === '1' && (s.business_email || s.from_email)) message.Bcc = s.business_email || s.from_email;
-  if (attachPdf) {
+  if (attachments && attachments.length) {
+    message.Attachments = attachments.map((a) => ({ Name: a.name, Content: a.content.toString('base64'), ContentType: 'application/pdf' }));
+  } else if (attachPdf) {
     const pdf = await renderPdf(doc);
     message.Attachments = [{ Name: pdfFilename(doc), Content: pdf.toString('base64'), ContentType: 'application/pdf' }];
   }

@@ -117,6 +117,15 @@
           </div>
           <form method="post" action="<%= base %>/<%= doc.id %>/payments/<%= p.id %>/delete" data-confirm="Delete this payment?"><%- include('../partials/csrf') %><button class="link danger">Delete</button></form>
         </div>
+        <div class="receipt-row">
+          <% if (p.receipt_sent_at) { %>
+            <span class="receipt-sent"><%- include('../partials/icon', { name: 'check', size: 14 }) %> Receipt sent <%= u.formatDateTime(p.receipt_sent_at) %></span>
+          <% } %>
+          <span class="receipt-actions">
+            <a class="btn small<%= p.receipt_sent_at ? '' : ' primary' %>" href="<%= base %>/<%= doc.id %>/payments/<%= p.id %>/receipt"><%- include('../partials/icon', { name: 'send', size: 14 }) %> <%= p.receipt_sent_at ? 'Resend' : 'Send receipt' %></a>
+            <a class="btn small" href="<%= base %>/<%= doc.id %>/payments/<%= p.id %>/receipt.pdf" target="_blank" title="Receipt PDF"><%- include('../partials/icon', { name: 'download', size: 14 }) %> PDF</a>
+          </span>
+        </div>
       <% } %>
       <% if (doc.balance_cents > 0) { %>
       <details <%= doc.payments.length ? '' : '' %>>
@@ -131,6 +140,11 @@
             </select>
           </label>
           <label>Reference <input name="reference" placeholder="Cheque #, transfer ID…"></label>
+          <% if (emailReady && doc.client.email) { %>
+            <label class="check"><input type="checkbox" name="send_receipt" value="1" checked> Email a receipt to <%= doc.client.email %></label>
+          <% } else { %>
+            <p class="hint"><%= emailReady ? 'Add an email address to this client to send receipts.' : 'Set up email to send receipts.' %> You can download a receipt PDF once the payment is recorded.</p>
+          <% } %>
           <button class="btn primary">Record payment</button>
         </form>
       </details>

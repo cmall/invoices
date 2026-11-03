@@ -187,7 +187,7 @@
 
 <form method="post" action="/settings" class="card form-grid" id="payments">
   <%- include('partials/csrf') %><input type="hidden" name="_section" value="payments">
-  <input type="hidden" name="_checkboxes" value="stripe_enabled">
+  <input type="hidden" name="_checkboxes" value="stripe_enabled,auto_receipt_online">
   <h2 class="span-2">Online payments (Stripe)</h2>
   <p class="span-2">
     Stripe secret key: <%- config.stripe ? '<span class="badge badge-paid">set</span>' : '<span class="badge badge-overdue">missing</span> add <code>STRIPE_SECRET_KEY</code> to <code>.env</code>' %><br>
@@ -196,6 +196,7 @@
   <p class="hint span-2">In Stripe, go to Developers → Webhooks and add an endpoint at <code><%= webhookUrl %></code> for the events
     <code>checkout.session.completed</code> and <code>checkout.session.async_payment_succeeded</code>. Payment methods offered come from your Stripe dashboard settings.</p>
   <label class="check span-2"><input type="checkbox" name="stripe_enabled" value="1" <%= s.stripe_enabled === '1' ? 'checked' : '' %>> Show a "Pay online" button on invoices</label>
+  <label class="check span-2"><input type="checkbox" name="auto_receipt_online" value="1" <%= s.auto_receipt_online !== '0' ? 'checked' : '' %>> Email the client a receipt (with PDF) automatically when they pay online</label>
   <div class="span-2"><button class="btn primary">Save</button></div>
 </form>
 
@@ -217,7 +218,7 @@
 <form method="post" action="/settings" class="card form-grid" id="templates">
   <%- include('partials/csrf') %><input type="hidden" name="_section" value="templates">
   <h2 class="span-2">Email templates</h2>
-  <p class="hint span-2">Placeholders: <code>{{business_name}}</code> <code>{{client_name}}</code> <code>{{contact_name}}</code> <code>{{number}}</code> <code>{{subject}}</code> <code>{{total}}</code> <code>{{amount_due}}</code> <code>{{due_date}}</code> <code>{{issue_date}}</code> <code>{{link}}</code>, and <code>{{payment_amount}}</code> in receipts.</p>
+  <p class="hint span-2">Placeholders: <code>{{business_name}}</code> <code>{{client_name}}</code> <code>{{contact_name}}</code> <code>{{number}}</code> <code>{{subject}}</code> <code>{{total}}</code> <code>{{amount_due}}</code> <code>{{due_date}}</code> <code>{{issue_date}}</code> <code>{{link}}</code>, and <code>{{payment_amount}}</code> <code>{{payment_date}}</code> <code>{{payment_method}}</code> <code>{{receipt_number}}</code> in receipts.</p>
   <% for (const [key, name] of [['invoice', 'New invoice'], ['estimate', 'New estimate'], ['reminder', 'Overdue reminder'], ['receipt', 'Payment receipt']]) { %>
     <h3 class="span-2"><%= name %></h3>
     <label class="span-2">Subject <input name="email_<%= key %>_subject" value="<%= s[`email_${key}_subject`] %>"></label>
