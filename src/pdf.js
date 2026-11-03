@@ -14,8 +14,9 @@ function publicUrl(doc) {
   return `${config.appUrl}/${doc.kind === 'invoice' ? 'i' : 'e'}/${doc.public_token}`;
 }
 
-function renderPdf(doc) {
-  const s = require('./businesses').effective(doc.business_id);
+// Creates a PDF with the business's paper size, fonts and colours, and draws the header
+// (logo or name on the left, business details on the right).
+function startPdf(s, title) {
   const accent = validColor(s.accent_color, '#2f5d8a');
   const heading = validColor(s.heading_color, accent);
   const F = s.invoice_font === 'classic' ? { regular: 'Times-Roman', bold: 'Times-Bold' } : { regular: 'Helvetica', bold: 'Helvetica-Bold' };
@@ -24,10 +25,7 @@ function renderPdf(doc) {
     size: s.paper_size === 'A4' ? 'A4' : 'LETTER',
     margins: { top: 50, bottom: 60, left: 50, right: 50 },
     bufferPages: true,
-    info: {
-      Title: `${doc.kind === 'invoice' ? 'Invoice' : 'Estimate'} ${doc.number}`,
-      Author: s.business_name || '',
-    },
+    info: { Title: title, Author: s.business_name || '' },
   });
   const chunks = [];
   pdf.on('data', (c) => chunks.push(c));
@@ -39,9 +37,7 @@ function renderPdf(doc) {
   const left = pdf.page.margins.left;
   const right = pdf.page.width - pdf.page.margins.right;
   const width = right - left;
-  const money = (c) => formatMoney(c, doc.currency);
 
-  // Header: logo (or business name) on the left, business details on the right.
   let headerBottom = 50;
   const logoPath = s.logo_file ? path.join(config.dataDir, s.logo_file) : '';
   if (logoPath && fs.existsSync(logoPath)) {
@@ -67,6 +63,34 @@ function renderPdf(doc) {
   pdf.font(F.regular).fontSize(9).fillColor(GREY);
   pdf.text(bizLines.join('\n'), left + width / 2, 50, { width: width / 2, align: 'right' });
   headerBottom = Math.max(headerBottom, pdf.y + 15);
+
+  return { pdf, done, left, right, width, F, accent, heading, headerBottom };
+}
+
+// Footer text on every page, then finish the document.
+function finishPdf(ctx, label) {
+  const { pdf, left, width, F } = ctx;
+  const range = pdf.bufferedPageRange();
+  for (let i = range.start; i < range.start + range.count; i++) {
+    pdf.switchToPage(i);
+    const fy = pdf.page.height - 40;
+    const oldBottom = pdf.page.margins.bottom;
+    pdf.page.margins.bottom = 0;
+    pdf.font(F.regular).fontSize(8).fillColor(GREY);
+    pdf.text(label, left, fy, { width: width / 2, lineBreak: false });
+    pdf.text(`Page ${i - range.start + 1} of ${range.count}`, left + width / 2, fy, { width: width / 2, align: 'right', lineBreak: false });
+    pdf.page.margins.bottom = oldBottom;
+  }
+  pdf.end();
+  return ctx.done;
+}
+
+function renderPdf(doc) {
+  const s = require('./businesses').effective(doc.business_id);
+  const ctx = startPdf(s, `${doc.kind === 'invoice' ? 'Invoice' : 'Estimate'} ${doc.number}`);
+  const { pdf, done, left, right, width, F, accent, heading } = ctx;
+  let headerBottom = ctx.headerBottom;
+  const money = (c) => formatMoney(c, doc.currency);
 
   // Title
   const title = doc.kind === 'invoice' ? 'INVOICE' : 'ESTIMATE';
@@ -245,21 +269,107 @@ function renderPdf(doc) {
     y = pdf.y + 14;
   }
 
-  // Footer with page numbers
-  const range = pdf.bufferedPageRange();
-  for (let i = range.start; i < range.start + range.count; i++) {
-    pdf.switchToPage(i);
-    const fy = pdf.page.height - 40;
-    const oldBottom = pdf.page.margins.bottom;
-    pdf.page.margins.bottom = 0;
-    pdf.font(F.regular).fontSize(8).fillColor(GREY);
-    pdf.text(`${doc.kind === 'invoice' ? 'Invoice' : 'Estimate'} ${doc.number}`, left, fy, { width: width / 2, lineBreak: false });
-    pdf.text(`Page ${i - range.start + 1} of ${range.count}`, left + width / 2, fy, { width: width / 2, align: 'right', lineBreak: false });
-    pdf.page.margins.bottom = oldBottom;
+  return finishPdf(ctx, `${doc.kind === 'invoice' ? 'Invoice' : 'Estimate'} ${doc.number}`);
+}
+
+const METHOD_LABELS = { stripe: 'Card (online)', etransfer: 'E-transfer', bank: 'Bank transfer', cheque: 'Cheque', cash: 'Cash', other: 'Other' };
+
+function receiptNumber(doc, payment) {
+  const n = (doc.payments || []).findIndex((p) => p.id === payment.id) + 1;
+  return `${doc.number}-R${n || 1}`;
+}
+
+// A receipt for one payment on an invoice.
+function renderReceiptPdf(doc, payment) {
+  const s = require('./businesses').effective(doc.business_id);
+  const number = receiptNumber(doc, payment);
+  const ctx = startPdf(s, `Receipt ${number}`);
+  const { pdf, left, right, width, F, accent, heading } = ctx;
+  const money = (c) => formatMoney(c, doc.currency);
+  let y = ctx.headerBottom;
+
+  pdf.font(F.bold).fontSize(24).fillColor(heading).text('RECEIPT', left, y);
+  const tw = pdf.widthOfString('RECEIPT');
+  pdf.font(F.bold).fontSize(12).fillColor('#15803d').text('PAID', left + tw + 14, y + 8);
+  y += 40;
+
+  // Received from / receipt details
+  const c = doc.client;
+  pdf.font(F.bold).fontSize(8).fillColor(GREY).text('RECEIVED FROM', left, y);
+  pdf.font(F.bold).fontSize(11).fillColor(DARK).text(c.name, left, pdf.y + 3, { width: width * 0.5 });
+  const toLines = [c.contact_name, ...String(c.address || '').split('\n')].filter((l) => l && l.trim());
+  if (toLines.length) pdf.font(F.regular).fontSize(10).fillColor(DARK).text(toLines.join('\n'), { width: width * 0.5 });
+  const leftBottom = pdf.y;
+
+  const meta = [
+    ['Receipt number', number],
+    ['Payment date', formatDate(payment.paid_date)],
+    ['Payment method', METHOD_LABELS[payment.method] || payment.method],
+  ];
+  if (payment.reference) meta.push(['Reference', payment.reference]);
+  meta.push(['For invoice', doc.number]);
+  let my = y;
+  const labelX = left + width * 0.55;
+  for (const [label, value] of meta) {
+    pdf.font(F.regular).fontSize(9).fillColor(GREY).text(label, labelX, my, { width: width * 0.2 });
+    pdf.font(F.regular).fontSize(10).fillColor(DARK).text(value, labelX + width * 0.2, my, { width: width * 0.25, align: 'right' });
+    my += 16;
+  }
+  y = Math.max(leftBottom, my) + 26;
+
+  // Big amount-received panel
+  const panelH = 70;
+  pdf.save();
+  pdf.roundedRect(left, y, width, panelH, 8).fill(accent);
+  pdf.restore();
+  pdf.font(F.regular).fontSize(10).fillColor('#ffffff').text('AMOUNT RECEIVED', left + 20, y + 16, { width: width / 2 });
+  pdf.font(F.bold).fontSize(26).fillColor('#ffffff').text(money(payment.amount_cents), left + width / 2, y + 20, { width: width / 2 - 20, align: 'right' });
+  pdf.font(F.regular).fontSize(9).fillColor('#ffffff').text(doc.currency, left + 20, y + 34, { width: width / 2 });
+  y += panelH + 26;
+
+  // Invoice summary
+  if (doc.subject) {
+    pdf.font(F.bold).fontSize(11).fillColor(DARK).text(`Invoice ${doc.number}: ${doc.subject}`, left, y, { width });
+    y = pdf.y + 10;
+  }
+  const paidBefore = (doc.payments || [])
+    .filter((p) => p.id !== payment.id && (p.paid_date < payment.paid_date || (p.paid_date === payment.paid_date && p.id < payment.id)))
+    .reduce((a, p) => a + p.amount_cents, 0);
+  const remaining = doc.total_cents - paidBefore - payment.amount_cents;
+  const rows = [
+    ['Invoice total', money(doc.total_cents)],
+    ...(paidBefore ? [['Previously paid', `-${money(paidBefore)}`]] : []),
+    ['This payment', `-${money(payment.amount_cents)}`],
+    ['Balance remaining', money(Math.max(0, remaining)), true],
+  ];
+  const tW = 280;
+  const tx = right - tW;
+  pdf.moveTo(tx, y).lineTo(right, y).lineWidth(1).strokeColor(accent).stroke();
+  y += 10;
+  for (const [label, value, bold] of rows) {
+    pdf.font(bold ? F.bold : F.regular).fontSize(10).fillColor(bold ? DARK : GREY).text(label, tx, y, { width: tW - 120 });
+    pdf.fillColor(DARK).text(value, tx + tW - 120, y, { width: 120, align: 'right' });
+    y += 18;
+  }
+  for (const t of doc.taxes || []) {
+    if (!t.reg_number) continue;
+    y += 4;
+    pdf.font(F.regular).fontSize(8).fillColor(GREY).text(`${t.name} registration #${t.reg_number}`, tx, y, { width: tW });
+    y = pdf.y;
   }
 
-  pdf.end();
-  return done;
+  y += 30;
+  pdf.font(F.regular).fontSize(11).fillColor(DARK).text(remaining <= 0 ? 'This invoice is paid in full. Thank you!' : 'Thank you for your payment!', left, y, { width });
+  if (payment.notes) {
+    pdf.font(F.regular).fontSize(9).fillColor(GREY).text(payment.notes, left, pdf.y + 8, { width });
+  }
+  return finishPdf(ctx, `Receipt ${number}`);
+}
+
+function receiptFilename(doc, payment) {
+  const s = require('./businesses').effective(doc.business_id);
+  const base = `${s.business_name ? `${s.business_name} ` : ''}Receipt ${receiptNumber(doc, payment)}`;
+  return `${base.replace(/[^\w.\- ]+/g, '').trim().replace(/\s+/g, '-')}.pdf`;
 }
 
 function validColor(c, fallback) {
@@ -278,4 +388,4 @@ function pdfFilename(doc) {
   return `${base.replace(/[^\w.\- ]+/g, '').trim().replace(/\s+/g, '-')}.pdf`;
 }
 
-module.exports = { renderPdf, pdfFilename, publicUrl };
+module.exports = { renderPdf, pdfFilename, publicUrl, renderReceiptPdf, receiptFilename, receiptNumber };

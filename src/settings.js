@@ -36,6 +36,8 @@ const DEFAULTS = {
   // Days after the due date to send each reminder.
   reminder_days: '3, 14, 30',
   notify_on_payment: '1',
+  // Email the client a receipt automatically when they pay online.
+  auto_receipt_online: '1',
   // In-app updates: repository (blank = the one this copy was cloned from) and branch.
   update_repo: '',
   update_branch: '',
@@ -67,8 +69,9 @@ const DEFAULTS = {
   email_receipt_subject: 'Payment received for invoice {{number}}',
   email_receipt_body:
     'Hi {{contact_name}},\n\n' +
-    'We received your payment of {{payment_amount}} for invoice {{number}}. ' +
-    'The remaining balance is {{amount_due}}.\n\n' +
+    'Thank you! We received your {{payment_method}} payment of {{payment_amount}} on {{payment_date}} ' +
+    'for invoice {{number}}. The remaining balance is {{amount_due}}.\n\n' +
+    'Your receipt ({{receipt_number}}) is attached.\n\n' +
     'You can view the invoice here:\n{{link}}\n\n' +
     'Thank you,\n{{business_name}}',
 };

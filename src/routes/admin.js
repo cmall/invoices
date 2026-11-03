@@ -15,7 +15,8 @@ const harvest = require('../harvest');
 const updater = require('../updater');
 const recurring = require('../recurring');
 const businesses = require('../businesses');
-const { renderPdf, pdfFilename, publicUrl } = require('../pdf');
+const receipts = require('../receipts');
+const { renderPdf, pdfFilename, publicUrl, renderReceiptPdf, receiptFilename } = require('../pdf');
 const {
   CURRENCIES,
   parseMoney,
@@ -564,12 +565,12 @@ function documentRoutes(kind) {
       res.redirect(`${base}/${req.doc.id}?msg=${q('Invoice voided')}`);
     });
 
-    router.post(`${base}/:id/payments`, load, (req, res) => {
+    router.post(`${base}/:id/payments`, load, async (req, res) => {
       const amount = parseMoney(req.body.amount);
       if (!amount || amount <= 0) return res.redirect(`${base}/${req.doc.id}?err=${q('Enter a payment amount')}#payments`);
       if (req.doc.status === 'draft') documents.markSent(req.doc.id);
       const method = documents.PAYMENT_METHODS[req.body.method] ? req.body.method : 'other';
-      documents.addPayment(req.doc.id, {
+      const paymentId = documents.addPayment(req.doc.id, {
         amount_cents: amount,
         paid_date: isIsoDate(req.body.paid_date) ? req.body.paid_date : today(),
         method,
@@ -577,7 +578,63 @@ function documentRoutes(kind) {
         notes: String(req.body.notes || '').trim(),
       });
       documents.logActivity(req.doc.id, `Payment of ${formatMoney(amount, req.doc.currency)} recorded (${documents.PAYMENT_METHODS[method]})`);
+      if (req.body.send_receipt === '1') {
+        const doc = documents.getDocument(req.doc.id);
+        const payment = doc.payments.find((p) => p.id === paymentId);
+        try {
+          await receipts.send(doc, payment);
+          return res.redirect(`${base}/${req.doc.id}?msg=${q(`Payment recorded and receipt emailed to ${doc.client.email}`)}#payments`);
+        } catch (err) {
+          return res.redirect(`${base}/${req.doc.id}?err=${q(`Payment recorded, but the receipt was not sent: ${err.message}`)}#payments`);
+        }
+      }
       res.redirect(`${base}/${req.doc.id}?msg=${q('Payment recorded')}#payments`);
+    });
+
+    const loadPayment = (req, res, next) => {
+      req.payment = receipts.findPayment(req.doc, req.params.paymentId);
+      if (!req.payment) return res.status(404).render('error', { title: 'Not found', message: 'Payment not found.' });
+      next();
+    };
+
+    router.get(`${base}/:id/payments/:paymentId/receipt.pdf`, load, loadPayment, async (req, res) => {
+      const buf = await renderReceiptPdf(req.doc, req.payment);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `${req.query.download ? 'attachment' : 'inline'}; filename="${receiptFilename(req.doc, req.payment)}"`);
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(buf);
+    });
+
+    router.get(`${base}/:id/payments/:paymentId/receipt`, load, loadPayment, (req, res) => {
+      res.render('documents/send', {
+        title: `Send receipt for ${formatMoney(req.payment.amount_cents, req.doc.currency)}`,
+        doc: req.doc,
+        kind,
+        base,
+        label,
+        purpose: 'receipt',
+        draft: receipts.defaults(req.doc, req.payment),
+        emailReady: email.isConfigured(),
+        action: `${base}/${req.doc.id}/payments/${req.payment.id}/receipt`,
+        pdfLink: `${base}/${req.doc.id}/payments/${req.payment.id}/receipt.pdf`,
+        attachLabel: 'Attach receipt PDF',
+      });
+    });
+
+    router.post(`${base}/:id/payments/:paymentId/receipt`, load, loadPayment, async (req, res) => {
+      const b = req.body;
+      try {
+        await receipts.send(req.doc, req.payment, {
+          to: b.to,
+          cc: b.cc,
+          subject: String(b.subject || '').trim(),
+          body: String(b.body || ''),
+          attachPdf: b.attach_pdf === '1',
+        });
+      } catch (err) {
+        return res.redirect(`${base}/${req.doc.id}/payments/${req.payment.id}/receipt?err=${q(`Receipt not sent: ${err.message}`)}`);
+      }
+      res.redirect(`${base}/${req.doc.id}?msg=${q('Receipt sent')}#payments`);
     });
 
     router.post(`${base}/:id/payments/:paymentId/delete`, load, (req, res) => {

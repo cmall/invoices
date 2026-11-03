@@ -80,12 +80,14 @@ async function recordSession(session) {
   // Emails are best effort and must not fail the webhook.
   const updated = documents.getDocument(doc.id);
   const s = settings.getAll();
-  if (email.isConfigured() && updated.client.email) {
-    const d = email.defaultsFor('receipt', updated, { payment_amount: amount });
-    email
-      .sendDocumentEmail(updated, { purpose: 'receipt', ...d, attachPdf: false })
-      .then(() => documents.logActivity(doc.id, 'Payment receipt emailed'))
-      .catch((err) => console.error('Receipt email failed:', err.message));
+  const payment = updated.payments.find((p) => p.stripe_session_id === session.id);
+  if (s.auto_receipt_online !== '0' && email.isConfigured() && updated.client.email && payment) {
+    require('./receipts')
+      .send(updated, payment)
+      .catch((err) => {
+        console.error('Receipt email failed:', err.message);
+        documents.logActivity(doc.id, `Receipt not sent: ${err.message}`);
+      });
   }
   if (s.notify_on_payment === '1') {
     email.notifyOwner(

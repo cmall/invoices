@@ -11,6 +11,7 @@ A small, self-hosted invoicing app for freelancers and small studios who send a 
 - **Your branding**: upload a logo and pick from colour themes or your own accent and heading colours, with a modern or classic typeface. Branding applies to PDFs, the client payment page, emails and the app itself, with a live preview in Settings.
 - **PDF invoices by email** through [Postmark](https://postmarkapp.com), with an editable message, an attached PDF and a link to the online invoice.
 - **Online payments** through [Stripe Checkout](https://stripe.com/payments/checkout). Payments are recorded automatically, and the client gets a receipt. You can also record e-transfers, cheques and bank transfers by hand.
+- **Receipts**: email a receipt (with a receipt PDF) when you record a payment, or send or resend one for any payment later. Clients who pay online get one automatically, and you can see which payments have had a receipt sent.
 - **Overdue reminders** sent automatically on a schedule you choose (for example 3, 14 and 30 days after the due date).
 - **Reports**: yearly totals invoiced and collected, tax charged and collected per tax (for filing returns), plus per-client and monthly breakdowns, with CSV export.
 - **Harvest import**: brings over your clients, contacts, projects, invoices, payments and estimates.

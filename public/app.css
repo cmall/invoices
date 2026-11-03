@@ -577,6 +577,12 @@ h2 .icon { color: var(--accent-text); margin-right: 4px; vertical-align: -3px; }
   background: color-mix(in oklab, var(--accent) 14%, transparent); color: color-mix(in oklab, var(--accent) 75%, var(--text)); }
 .from-pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 
+/* ---------- Receipts ---------- */
+.receipt-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 0 10px; border-bottom: 1px solid var(--border); margin-top: -4px; }
+.payment:has(+ .receipt-row) { border-bottom: 0; }
+.receipt-sent { display: inline-flex; align-items: center; gap: 5px; font-size: 0.78rem; color: var(--ok); font-weight: 560; }
+.receipt-actions { display: flex; gap: 6px; margin-left: auto; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1100px) {
   .hero-grid { grid-template-columns: 1fr; }

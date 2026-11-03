@@ -201,6 +201,10 @@ const migrations = [
   ALTER TABLE clients ADD COLUMN business_id INTEGER REFERENCES businesses(id) ON DELETE SET NULL;
   ALTER TABLE recurring ADD COLUMN business_id INTEGER REFERENCES businesses(id) ON DELETE SET NULL;
   `,
+  `
+  -- When a receipt for this payment was last emailed to the client.
+  ALTER TABLE payments ADD COLUMN receipt_sent_at TEXT;
+  `,
 ];
 
 function migrate() {
