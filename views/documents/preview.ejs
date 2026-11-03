@@ -9,7 +9,7 @@
       <% if (logoUrl) { %><img src="<%= logoUrl %>" alt="<%= b.business_name %>" class="paper-logo"><% } else if (b.business_name) { %><div class="paper-name"><%= b.business_name %></div><% } %>
     </div>
     <div class="paper-from">
-      <% for (const l of [b.business_name, ...String(b.business_address || '').split('\n'), b.business_email, b.business_phone, b.business_website].filter(x => x && x.trim())) { %><div><%= l %></div><% } %>
+      <% for (const l of [b.business_name, ...u.cleanText(b.business_address).split('\n'), b.business_email, b.business_phone, u.displayUrl(b.business_website)].filter(x => x && x.trim())) { %><div><%= l %></div><% } %>
     </div>
   </header>
 

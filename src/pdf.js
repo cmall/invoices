@@ -4,7 +4,7 @@ const path = require('path');
 const PDFDocument = require('pdfkit');
 const config = require('./config');
 const settings = require('./settings');
-const { formatMoney, formatDate, formatQuantity, formatRate } = require('./util');
+const { formatMoney, formatDate, formatQuantity, formatRate, cleanText, displayUrl } = require('./util');
 
 const GREY = '#6b7280';
 const DARK = '#111827';
@@ -34,6 +34,13 @@ function startPdf(s, title) {
     pdf.on('error', reject);
   });
 
+  // Clean every string before it is drawn or measured, so stray \r (from addresses typed in a
+  // browser) and other control characters never show up as odd glyphs.
+  for (const fn of ['text', 'heightOfString', 'widthOfString']) {
+    const orig = pdf[fn].bind(pdf);
+    pdf[fn] = (t, ...rest) => orig(typeof t === 'string' ? cleanText(t) : t, ...rest);
+  }
+
   const left = pdf.page.margins.left;
   const right = pdf.page.width - pdf.page.margins.right;
   const width = right - left;
@@ -55,10 +62,10 @@ function startPdf(s, title) {
 
   const bizLines = [
     s.business_name,
-    ...String(s.business_address || '').split('\n'),
+    ...cleanText(s.business_address).split('\n'),
     s.business_email,
     s.business_phone,
-    s.business_website,
+    displayUrl(s.business_website),
   ].filter((l) => l && l.trim());
   pdf.font(F.regular).fontSize(9).fillColor(GREY);
   pdf.text(bizLines.join('\n'), left + width / 2, 50, { width: width / 2, align: 'right' });
@@ -108,7 +115,7 @@ function renderPdf(doc) {
   const c = doc.client;
   pdf.font(F.bold).fontSize(8).fillColor(GREY).text(doc.kind === 'invoice' ? 'BILL TO' : 'PREPARED FOR', left, blockTop);
   pdf.font(F.bold).fontSize(11).fillColor(DARK).text(c.name, left, pdf.y + 3, { width: width * 0.5 });
-  const toLines = [c.contact_name, ...String(c.address || '').split('\n')].filter((l) => l && l.trim());
+  const toLines = [c.contact_name, ...cleanText(c.address).split('\n')].filter((l) => l && l.trim());
   if (toLines.length) pdf.font(F.regular).fontSize(10).fillColor(DARK).text(toLines.join('\n'), { width: width * 0.5 });
   const billBottom = pdf.y;
 
@@ -297,7 +304,7 @@ function renderReceiptPdf(doc, payment) {
   const c = doc.client;
   pdf.font(F.bold).fontSize(8).fillColor(GREY).text('RECEIVED FROM', left, y);
   pdf.font(F.bold).fontSize(11).fillColor(DARK).text(c.name, left, pdf.y + 3, { width: width * 0.5 });
-  const toLines = [c.contact_name, ...String(c.address || '').split('\n')].filter((l) => l && l.trim());
+  const toLines = [c.contact_name, ...cleanText(c.address).split('\n')].filter((l) => l && l.trim());
   if (toLines.length) pdf.font(F.regular).fontSize(10).fillColor(DARK).text(toLines.join('\n'), { width: width * 0.5 });
   const leftBottom = pdf.y;
 

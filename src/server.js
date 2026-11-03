@@ -50,6 +50,16 @@ function createApp() {
   });
 
   app.use(express.urlencoded({ extended: false, limit: '2mb', parameterLimit: 5000 }));
+  // Normalise line endings in submitted forms (browsers send \r\n) before anything is saved.
+  app.use((req, res, next) => {
+    if (req.body && typeof req.body === 'object' && !Buffer.isBuffer(req.body)) {
+      for (const [k, v] of Object.entries(req.body)) {
+        if (typeof v === 'string') req.body[k] = v.replace(/\r\n?/g, '\n');
+        else if (Array.isArray(v)) req.body[k] = v.map((x) => (typeof x === 'string' ? x.replace(/\r\n?/g, '\n') : x));
+      }
+    }
+    next();
+  });
   app.use(
     '/static/fonts',
     express.static(path.join(config.root, 'node_modules/@fontsource-variable/inter/files'), { maxAge: '30d', immutable: true }),
